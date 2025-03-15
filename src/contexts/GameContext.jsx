@@ -62,16 +62,18 @@ const GameContext = createContext();
 export const GameProvider = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   
-  // Get current position based on move index
-  const currentPosition = state.positions[state.currentMoveIndex] || null;
+  // Get current position based on move index from reportResults, fall back to positions
+  const currentPosition = state.reportResults?.positions?.[state.currentMoveIndex] || 
+                          state.positions[state.currentMoveIndex] || null;
   
   // Function to traverse moves
   const traverseMoves = (moveCount) => {
     if (state.isAnalysisRunning || !state.reportResults) return;
     
     const previousMoveIndex = state.currentMoveIndex;
+    const positionsArray = state.reportResults?.positions || state.positions;
     let newIndex = Math.max(
-      Math.min(state.currentMoveIndex + moveCount, state.positions.length - 1),
+      Math.min(state.currentMoveIndex + moveCount, positionsArray.length - 1),
       0
     );
     

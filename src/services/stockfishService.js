@@ -3,16 +3,32 @@
  */
 export class Stockfish {
   constructor() {
-    // Use CDN version instead of local files for better reliability
-    this.worker = new Worker(
-      "https://cdn.jsdelivr.net/gh/niklasf/stockfish.wasm@10/stockfish.js"
-    );
+    // Use local Stockfish files instead of CDN
+    try {
+      this.worker = new Worker('/scripts/stockfish.js');
+    } catch (e) {
+      console.error("Error loading primary Stockfish worker:", e);
+      // Fallback to an alternate local path if the first one fails
+      try {
+        this.worker = new Worker('./scripts/stockfish.js');
+      } catch (e2) {
+        console.error("Error loading secondary Stockfish worker:", e2);
+        // Final fallback - try project-relative path
+        try {
+          this.worker = new Worker('../scripts/stockfish.js');
+        } catch (e3) {
+          console.error("All Stockfish loading attempts failed:", e3);
+        }
+      }
+    }
     
     this.depth = 0;
     
-    // Initialize Stockfish
-    this.worker.postMessage("uci");
-    this.worker.postMessage("setoption name MultiPV value 2");
+    // Initialize Stockfish if worker was created successfully
+    if (this.worker) {
+      this.worker.postMessage("uci");
+      this.worker.postMessage("setoption name MultiPV value 2");
+    }
   }
   
   /**
@@ -23,6 +39,17 @@ export class Stockfish {
    * @returns {Promise<Array>} - Array of engine lines with evaluations
    */
   async evaluate(fen, targetDepth = 16, verbose = false) {
+    // If worker wasn't created successfully, return a default evaluation
+    if (!this.worker) {
+      console.warn("No Stockfish worker available, returning default evaluation");
+      return [{
+        id: 1,
+        depth: 10,
+        evaluation: { type: "cp", value: 0 },
+        moveUCI: "e2e4" // Default first move
+      }];
+    }
+    
     this.worker.postMessage("position fen " + fen);
     this.worker.postMessage("go depth " + targetDepth);
     
@@ -123,30 +150,20 @@ export class Stockfish {
       });
       
       // Handle errors and provide fallback
-      this.worker.addEventListener("error", () => {
+      this.worker.addEventListener("error", (error) => {
+        console.error("Stockfish worker error:", error);
         clearTimeout(timeout);
         
-        // Terminate the current Stockfish, switch to alternate CDN as fallback
+        // Terminate the current Stockfish
         this.worker.terminate();
         
-        // Try an alternative CDN
-        try {
-          this.worker = new Worker("https://unpkg.com/@lichess-org/stockfish-wasm@1.0.0/stockfish.js");
-          
-          this.worker.postMessage("uci");
-          this.worker.postMessage("setoption name MultiPV value 2");
-          
-          this.evaluate(fen, targetDepth, verbose).then(resolve);
-        } catch (e) {
-          // If all engine options fail, provide a basic response
-          console.error("All Stockfish options failed, providing basic evaluation");
-          resolve([{
-            id: 1,
-            depth: 10,
-            evaluation: { type: "cp", value: 0 },
-            moveUCI: "e2e4" // Default first move
-          }]);
-        }
+        // Provide a basic response as fallback
+        resolve([{
+          id: 1,
+          depth: 10,
+          evaluation: { type: "cp", value: 0 },
+          moveUCI: "e2e4" // Default first move
+        }]);
       });
     });
   }

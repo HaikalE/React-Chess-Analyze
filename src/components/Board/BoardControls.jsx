@@ -21,14 +21,14 @@ const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }
   } = useGameContext();
   
   return (
-    <div className="w-full mt-4 flex flex-col sm:flex-row justify-between gap-2">
-      <div className="flex justify-center">
+    <div className="w-full flex flex-col sm:flex-row justify-between gap-2">
+      <div className="flex justify-center sm:justify-start">
         <button 
           className="btn-secondary rounded-l-md rounded-r-none px-3 py-2 border-r border-secondary-600"
           onClick={flipBoard}
           title="Flip Board"
         >
-          <FontAwesomeIcon icon={faRepeat} />
+          <FontAwesomeIcon icon={faRepeat} className="text-secondary-200" />
         </button>
         
         <button 
@@ -36,7 +36,7 @@ const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }
           onClick={goToStart}
           title="Back to Start"
         >
-          <FontAwesomeIcon icon={faBackwardStep} />
+          <FontAwesomeIcon icon={faBackwardStep} className="text-secondary-200" />
         </button>
         
         <button 
@@ -44,7 +44,7 @@ const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }
           onClick={prevMove}
           title="Previous Move"
         >
-          <FontAwesomeIcon icon={faArrowLeft} />
+          <FontAwesomeIcon icon={faArrowLeft} className="text-secondary-200" />
         </button>
         
         <button 
@@ -52,7 +52,7 @@ const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }
           onClick={nextMove}
           title="Next Move"
         >
-          <FontAwesomeIcon icon={faArrowRight} />
+          <FontAwesomeIcon icon={faArrowRight} className="text-secondary-200" />
         </button>
         
         <button 
@@ -60,7 +60,7 @@ const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }
           onClick={goToEnd}
           title="Go to End"
         >
-          <FontAwesomeIcon icon={faForwardStep} />
+          <FontAwesomeIcon icon={faForwardStep} className="text-secondary-200" />
         </button>
         
         <button 
@@ -68,15 +68,15 @@ const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }
           onClick={onSave}
           title="Save Analysis"
         >
-          <FontAwesomeIcon icon={faFloppyDisk} />
+          <FontAwesomeIcon icon={faFloppyDisk} className="text-secondary-200" />
         </button>
       </div>
       
-      <div className="flex items-center justify-center sm:justify-end">
+      <div className="flex items-center justify-center sm:justify-end mt-2 sm:mt-0">
         <button
           className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded transition-colors ${
             showSuggestionArrows 
-              ? 'bg-accent-600 hover:bg-accent-700 text-white' 
+              ? 'bg-accent-600 hover:bg-accent-700 text-secondary-100' 
               : 'bg-secondary-700 hover:bg-secondary-600 text-secondary-300'
           }`}
           onClick={() => setShowSuggestionArrows(!showSuggestionArrows)}

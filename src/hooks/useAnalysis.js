@@ -194,7 +194,7 @@ const useAnalysis = () => {
     const evaluatedPositions = [...positions];
     const total = positions.length;
     let completedCount = 0;
-    const maxWorkers = 4; // Optimal thread count
+    const maxWorkers = 2; // Reduced from 4 to prevent resource overload
     let activeWorkers = 0;
     
     return new Promise((resolve) => {
@@ -220,55 +220,18 @@ const useAnalysis = () => {
         const position = positions[index];
         
         try {
-          // Try cloud evaluation first (similar to original code)
-          let cloudEval = null;
-          if (index > 0) { // Skip first position (starting position)
-            try {
-              const queryFen = position.fen.replace(/\s/g, "%20");
-              const response = await fetch(
-                `https://lichess.org/api/cloud-eval?fen=${queryFen}&multiPv=2`,
-                { method: "GET" }
-              );
-              
-              if (response.ok) {
-                cloudEval = await response.json();
-              }
-            } catch (e) {
-              console.log("Cloud eval failed, using local Stockfish");
-            }
-          }
+          console.log(`Analyzing position ${index} with Stockfish, target depth ${depth}`);
           
-          if (cloudEval && cloudEval.pvs && cloudEval.pvs.length) {
-            // Process cloud evaluation
-            evaluatedPositions[index] = {
-              ...position,
-              topLines: cloudEval.pvs.map((pv, id) => {
-                const evaluationType = pv.cp !== undefined ? "cp" : "mate";
-                const evaluationScore = pv.cp ?? pv.mate ?? 0;
-                
-                return {
-                  id: id + 1,
-                  depth: depth,
-                  moveUCI: pv.moves.split(" ")[0] ?? "",
-                  evaluation: {
-                    type: evaluationType,
-                    value: evaluationScore,
-                  }
-                };
-              }),
-              worker: "cloud"
-            };
-          } else {
-            // Use local Stockfish
-            const engine = new Stockfish();
-            const lines = await engine.evaluate(position.fen, depth);
-            
-            evaluatedPositions[index] = {
-              ...position,
-              topLines: lines,
-              worker: "stockfish"
-            };
-          }
+          // Skip cloud evaluation - it was causing 404 errors
+          // Go directly to local Stockfish evaluation
+          const engine = new Stockfish();
+          const lines = await engine.evaluate(position.fen, depth);
+          
+          evaluatedPositions[index] = {
+            ...position,
+            topLines: lines,
+            worker: "stockfish"
+          };
           
           completedCount++;
           progressCallback((completedCount / total) * 100);
@@ -281,13 +244,13 @@ const useAnalysis = () => {
               topLines: [
                 {
                   id: 1,
-                  depth: depth,
+                  depth: depth / 2, // Reduce depth for fallback
                   moveUCI: position.move?.uci || "e2e4",
                   evaluation: { type: "cp", value: 0 }
                 },
                 {
                   id: 2,
-                  depth: depth,
+                  depth: depth / 2,
                   moveUCI: "d2d4",
                   evaluation: { type: "cp", value: -10 }
                 }

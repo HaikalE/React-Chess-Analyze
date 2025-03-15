@@ -17,6 +17,7 @@ const ReviewPanel = () => {
   const [selectSource, setSelectSource] = useState('');
   const [selectUsername, setSelectUsername] = useState('');
   const [pgnText, setPgnText] = useState('');
+  const [currentDepth, setCurrentDepth] = useState(20); // Add state for depth
   
   const handleShowGameSelect = (source, username) => {
     setSelectSource(source);
@@ -31,11 +32,14 @@ const ReviewPanel = () => {
     // Close the game select modal
     setShowGameSelect(false);
     
-    // Start analysis automatically
-    // This will analyze the game as soon as it's selected
+    // Start analysis automatically with current depth value
     setTimeout(() => {
-      analyzePgn(pgn);
+      analyzePgn(pgn, currentDepth); // Use currentDepth here
     }, 100);
+  };
+  
+  const handleDepthChange = (depth) => {
+    setCurrentDepth(depth);
   };
   
   const handleSaveAnalysis = () => {
@@ -65,6 +69,7 @@ const ReviewPanel = () => {
         onShowGameSelect={handleShowGameSelect} 
         pgnText={pgnText}
         setPgnText={setPgnText}
+        onDepthChange={handleDepthChange} // Pass the depth change handler
       />
       
       {reportResults ? (

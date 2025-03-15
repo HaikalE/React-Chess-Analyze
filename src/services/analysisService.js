@@ -4,44 +4,99 @@ import {
 } from '../utils/constants';
 import { determineMoveQuality } from '../utils/moveQualityUtils';
 import openings from '../data/openings.json';
-
-// Positif klasifikasi untuk deteksi langkah "book"
-const positiveClassifications = [
-  Classification.BEST,
-  Classification.BRILLIANT, 
-  Classification.EXCELLENT, 
-  Classification.GREAT
-];
+import { Chess } from 'chess.js';
 
 /**
  * Process evaluated positions to generate a complete analysis report
+ * Implementasi yang persis dengan versi TypeScript
  * @param {Array} positions - Evaluated chess positions
  * @returns {object} - Full analysis report with classifications and accuracies
  */
 export const generateAnalysisReport = (positions) => {
   // Generate classifications for each position
   let positionIndex = 0;
+  
   for (let position of positions.slice(1)) {
     positionIndex++;
     
     try {
+      let board = new Chess(position.fen);
       let lastPosition = positions[positionIndex - 1];
       
-      // Gunakan algoritma baru untuk klasifikasi
-      if (position.move?.uci && lastPosition.topLines && position.topLines) {
-        position.classification = determineMoveQuality(
-          lastPosition.fen,
-          position.fen,
-          lastPosition.topLines[0]?.evaluation || { type: "cp", value: 0 },
-          position.topLines[0]?.evaluation || { type: "cp", value: 0 },
-          lastPosition.topLines,
-          position.topLines,
-          position.move.uci,
-          position.move.san
-        );
-      } else {
-        position.classification = Classification.BOOK;
+      let topMove = lastPosition.topLines.find(line => line.id === 1);
+      let secondTopMove = lastPosition.topLines.find(line => line.id === 2);
+      if (!topMove) continue;
+      
+      let previousEvaluation = topMove.evaluation;
+      let evaluation = position.topLines.find(line => line.id === 1)?.evaluation;
+      if (!previousEvaluation) continue;
+      
+      let moveColour = position.fen.includes(" b ") ? "white" : "black";
+      
+      // Jika tidak ada langkah legal di posisi ini (end game state)
+      if (!evaluation) {
+        evaluation = { type: board.isCheckmate() ? "mate" : "cp", value: 0 };
+        position.topLines.push({
+          id: 1,
+          depth: 0,
+          evaluation: evaluation,
+          moveUCI: ""
+        });
       }
+      
+      let absoluteEvaluation = evaluation.value * (moveColour === "white" ? 1 : -1);
+      let previousAbsoluteEvaluation = previousEvaluation.value * (moveColour === "white" ? 1 : -1);
+      let absoluteSecondEvaluation = (secondTopMove?.evaluation?.value || 0) * (moveColour === "white" ? 1 : -1);
+      
+      // Hitung evaluation loss sebagai hasil dari langkah ini
+      let evalLoss = Infinity;
+      let cutoffEvalLoss = Infinity;
+      let lastLineEvalLoss = Infinity;
+      
+      let matchingTopLine = lastPosition.topLines.find(line => line.moveUCI === position.move.uci);
+      if (matchingTopLine) {
+        if (moveColour === "white") {
+          lastLineEvalLoss = previousEvaluation.value - matchingTopLine.evaluation.value;
+        } else {
+          lastLineEvalLoss = matchingTopLine.evaluation.value - previousEvaluation.value;
+        }
+      }
+      
+      if (lastPosition.cutoffEvaluation) {
+        if (moveColour === "white") {
+          cutoffEvalLoss = lastPosition.cutoffEvaluation.value - evaluation.value;
+        } else {
+          cutoffEvalLoss = evaluation.value - lastPosition.cutoffEvaluation.value;
+        }
+      }
+      
+      if (moveColour === "white") {
+        evalLoss = previousEvaluation.value - evaluation.value;
+      } else {
+        evalLoss = evaluation.value - previousEvaluation.value;
+      }
+      
+      evalLoss = Math.min(evalLoss, cutoffEvalLoss, lastLineEvalLoss);
+      
+      // Jika langkah ini satu-satunya yang legal, terapkan FORCED
+      if (!secondTopMove) {
+        position.classification = Classification.FORCED;
+        continue;
+      }
+      
+      // Gunakan fungsi determineMoveQuality yang lengkap
+      position.classification = determineMoveQuality(
+        lastPosition.fen,
+        position.fen,
+        previousEvaluation,
+        evaluation,
+        lastPosition.topLines,
+        position.topLines,
+        position.move.uci,
+        position.move.san,
+        lastPosition.classification,  // Tambahkan lastPositionClassification
+        lastPosition.cutoffEvaluation // Tambahkan cutoffEvaluation
+      );
       
     } catch (error) {
       console.error("Error classifying position:", error);
@@ -60,10 +115,12 @@ export const generateAnalysisReport = (positions) => {
   }
   
   // Apply book moves for cloud evaluations and named positions
+  let positiveClassifs = Object.keys(classificationValues).slice(4, 8); // Persis dengan TypeScript
+  
   try {
     for (let position of positions.slice(1)) {
       if (
-        (position.worker === "cloud" && positiveClassifications.includes(position.classification))
+        (position.worker === "cloud" && positiveClassifs.includes(position.classification))
         || position.opening
       ) {
         position.classification = Classification.BOOK;
@@ -75,46 +132,65 @@ export const generateAnalysisReport = (positions) => {
     console.warn("Error applying book moves:", error);
   }
   
-  // Generate SAN moves from all engine lines if needed
+  // Generate SAN moves from all engine lines
   for (let position of positions) {
-    // Skip if already processed or no topLines
     if (!position.topLines) continue;
     
     for (let line of position.topLines) {
-      if (!line || !line.moveUCI || line.moveSAN || 
-          (line.evaluation?.type === "mate" && line.evaluation?.value === 0)) {
-        continue;
-      }
+      if (!line) continue;
+      if (line.evaluation?.type === "mate" && line.evaluation?.value === 0) continue;
+      if (!line.moveUCI || line.moveSAN) continue;
       
-      // Use chess.js to generate SAN from UCI if missing
+      let board = new Chess(position.fen);
+      
       try {
-        const chess = new Chess(position.fen);
-        line.moveSAN = chess.move({
+        line.moveSAN = board.move({
           from: line.moveUCI.slice(0, 2),
           to: line.moveUCI.slice(2, 4),
           promotion: line.moveUCI.slice(4) || undefined
         }).san;
       } catch (e) {
         line.moveSAN = "";
-        console.warn("Error generating SAN for move:", line.moveUCI, e);
       }
     }
   }
   
   // Calculate computer accuracy percentages
   let accuracies = {
-    white: { current: 0, maximum: 0 },
-    black: { current: 0, maximum: 0 }
+    white: {
+      current: 0,
+      maximum: 0
+    },
+    black: {
+      current: 0,
+      maximum: 0
+    }
   };
   
   const classifications = {
     white: {
-      brilliant: 0, great: 0, best: 0, excellent: 0, good: 0,
-      inaccuracy: 0, mistake: 0, blunder: 0, book: 0, forced: 0,
+      brilliant: 0,
+      great: 0,
+      best: 0,
+      excellent: 0,
+      good: 0,
+      inaccuracy: 0,
+      mistake: 0,
+      blunder: 0,
+      book: 0,
+      forced: 0,
     },
     black: {
-      brilliant: 0, great: 0, best: 0, excellent: 0, good: 0,
-      inaccuracy: 0, mistake: 0, blunder: 0, book: 0, forced: 0,
+      brilliant: 0,
+      great: 0,
+      best: 0,
+      excellent: 0,
+      good: 0,
+      inaccuracy: 0,
+      mistake: 0,
+      blunder: 0,
+      book: 0,
+      forced: 0,
     }
   };
   

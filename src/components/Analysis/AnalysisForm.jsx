@@ -16,7 +16,8 @@ import {
   faCircleExclamation
 } from '@fortawesome/free-solid-svg-icons';
 
-const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
+// Add depth to the props being passed to parent
+const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) => {
   const { 
     isAnalysisRunning, 
     analysisProgress, 
@@ -29,7 +30,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
   
   const [loadType, setLoadType] = useState('pgn');
   const [username, setUsername] = useState('');
-  const [depth, setDepth] = useState(16);
+  const [depth, setDepth] = useState(20); // Changed default to 20
   const [showArrows, setShowArrows] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
@@ -55,6 +56,13 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
       setShowCaptcha(false);
     }
   }, [isAnalysisRunning, evaluatedPositions, reportResults]);
+  
+  // Send depth changes to parent component
+  useEffect(() => {
+    if (onDepthChange) {
+      onDepthChange(depth);
+    }
+  }, [depth, onDepthChange]);
   
   const handleLoadTypeChange = (e) => {
     const newLoadType = e.target.value;
@@ -116,7 +124,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
     localStorage.setItem(`chess-site-username-saved-${loadType}`, username);
     
     // Show game selection modal
-    onShowGameSelect(loadType, username);
+    onShowGameSelect(loadType, username, depth); // Pass depth to parent
   };
 
   // Generate progress stage description
@@ -232,7 +240,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
           </div>
           
           <div className="text-xs text-secondary-500 mt-2 text-center">
-            Analysis at depth {depth} takes approximately {depth <= 14 ? "1-2" : depth <= 16 ? "2-3" : "3-5"} minutes for a full game
+            Analysis at depth {depth} takes approximately {depth <= 14 ? "1-2" : depth <= 16 ? "2-3" : depth <= 18 ? "3-5" : "5-8"} minutes for a full game
           </div>
         </div>
       )}

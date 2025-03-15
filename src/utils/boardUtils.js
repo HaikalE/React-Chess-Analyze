@@ -1,10 +1,21 @@
 import { Chess } from 'chess.js';
 
-// Constants
+// Nilai buah catur
+export const pieceValues = {
+  "p": 1,  // pion
+  "n": 3,  // kuda
+  "b": 3,  // uskup
+  "r": 5,  // benteng
+  "q": 9,  // ratu
+  "k": Infinity, // raja
+  "m": 0   // placeholder untuk square kosong
+};
+
+// Konstanta
 export const BOARD_SIZE = 730;
 export const startingPositionFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-// Classification colors
+// Warna klasifikasi
 export const classificationColors = {
   "brilliant": "#1baaa6",
   "great": "#5b8baf",
@@ -16,16 +27,6 @@ export const classificationColors = {
   "blunder": "#c93230",
   "forced": "#97af8b",
   "book": "#a88764"
-};
-
-export const pieceValues = {
-  "p": 1,
-  "n": 3,
-  "b": 3,
-  "r": 5,
-  "q": 9,
-  "k": Infinity,
-  "m": 0
 };
 
 export const promotions = [undefined, "b", "n", "r", "q"];
@@ -48,7 +49,7 @@ export function getBoardCoordinates(square, boardFlipped = false) {
 }
 
 // Convert coordinates to square notation
-function getSquare(coordinate) {
+export function getSquare(coordinate) {
   return "abcdefgh".charAt(coordinate.x) + (coordinate.y + 1).toString();
 }
 
@@ -117,6 +118,12 @@ export function getMovedPlayer(fen) {
   return fen && fen.includes(" b ") ? "white" : "black";
 }
 
+/**
+ * Mendapatkan semua buah yang menyerang suatu square
+ * @param {string} fen - FEN string representasi posisi
+ * @param {string} square - Notasi algebraik square (e.g., "e4")
+ * @returns {Array} - Array buah yang menyerang square
+ */
 export function getAttackers(fen, square) {
   let attackers = [];
   
@@ -124,24 +131,25 @@ export function getAttackers(fen, square) {
     let board = new Chess(fen);
     let piece = board.get(square);
     
-    // If no piece at square, return empty array
+    // Jika tidak ada buah di square, return array kosong
     if (!piece) return [];
     
-    // Set colour to move to opposite of attacked piece
+    // Set warna giliran ke lawan dari buah yang diserang
     let oppositeTurn = piece.color === 'w' ? 'b' : 'w';
     
-    // Try to load a modified FEN with opponent to move
+    // Coba load FEN yang dimodifikasi dengan lawan yang bergerak
     try {
-      board.load(fen
-        .replace(/(?<= )(?:w|b)(?= )/g, oppositeTurn)
-        .replace(/ [a-h][1-8] /g, " - ")
-      );
+      const fenParts = fen.split(' ');
+      fenParts[1] = oppositeTurn;
+      fenParts[3] = '-'; // Hapus en passant
+      const modifiedFen = fenParts.join(' ');
+      board.load(modifiedFen);
     } catch (e) {
       console.warn("Failed to modify FEN for attacker check:", e);
       return [];
     }
     
-    // Find each legal move that captures attacked piece
+    // Cari langkah legal yang menangkap buah
     let legalMoves = board.moves({ verbose: true });
     
     for (let move of legalMoves) {
@@ -154,8 +162,7 @@ export function getAttackers(fen, square) {
       }
     }
     
-    // If there is an opposite king around the attacked piece add him as an attacker
-    // if he is not the only attacker or it is a legal move for the king to capture it
+    // Cek raja lawan di sekitar buah yang diserang
     let oppositeKing;
     let oppositeColour = piece.color === 'w' ? 'b' : 'w';
     
@@ -190,6 +197,7 @@ export function getAttackers(fen, square) {
     
     if (!oppositeKing) return attackers;
     
+    // Verifikasi apakah raja bisa menangkap buah secara legal
     let kingCaptureLegal = false;
     try {
       board.move({
@@ -200,7 +208,7 @@ export function getAttackers(fen, square) {
       kingCaptureLegal = true;
     } catch {}
     
-    if (oppositeKing && (attackers.length > 0 || kingCaptureLegal)) {
+    if (kingCaptureLegal || attackers.length > 0) {
       attackers.push(oppositeKing);
     }
     
@@ -211,30 +219,37 @@ export function getAttackers(fen, square) {
   }
 }
 
+/**
+ * Mendapatkan semua buah yang membela suatu square
+ * @param {string} fen - FEN string representasi posisi
+ * @param {string} square - Notasi algebraik square (e.g., "e4")
+ * @returns {Array} - Array buah yang membela square
+ */
 export function getDefenders(fen, square) {
   try {
     let board = new Chess(fen);
     let piece = board.get(square);
     
-    // If no piece at square, return empty array
+    // Jika tidak ada buah di square, return array kosong
     if (!piece) return [];
     
+    // Strategi 1: Gunakan penyerang untuk test
     let testAttacker = getAttackers(fen, square)[0];
     
-    // If there is an attacker we can test capture the piece with
     if (testAttacker) {
-      // Set player to move to colour of test attacker
+      // Set giliran ke warna attacker
       try {
-        board.load(fen
-          .replace(/(?<= )(?:w|b)(?= )/g, testAttacker.color)
-          .replace(/ [a-h][1-8] /g, " - ")
-        );
+        const fenParts = fen.split(' ');
+        fenParts[1] = testAttacker.color;
+        fenParts[3] = '-'; // Hapus en passant
+        const modifiedFen = fenParts.join(' ');
+        board.load(modifiedFen);
       } catch (e) {
         console.warn("Failed to modify FEN for defender check:", e);
         return [];
       }
       
-      // Capture the defended piece with the test attacker
+      // Coba tangkap buah yang dibela dengan test attacker
       for (let promotion of promotions) {
         try {
           board.move({
@@ -243,30 +258,34 @@ export function getDefenders(fen, square) {
             promotion: promotion
           });
           
-          // Return the attackers that can now capture the test attacker
+          // Return penyerang yang bisa menangkap test attacker
           return getAttackers(board.fen(), square);
         } catch {}
       }
-    } else {
-      // Set player to move to defended piece colour
+    } 
+    // Strategi 2: Gunakan ratu lawan sebagai test
+    else {
+      // Set giliran ke warna buah yang dibela
       try {
-        board.load(fen
-          .replace(/(?<= )(?:w|b)(?= )/g, piece.color)
-          .replace(/ [a-h][1-8] /g, " - ")
-        );
+        const fenParts = fen.split(' ');
+        fenParts[1] = piece.color;
+        fenParts[3] = '-'; // Hapus en passant
+        const modifiedFen = fenParts.join(' ');
+        board.load(modifiedFen);
       } catch (e) {
         console.warn("Failed to modify FEN for defender check:", e);
         return [];
       }
       
-      // Replace defended piece with an enemy queen
+      // Ganti buah dengan ratu lawan untuk test
       try {
+        board.remove(square);
         board.put({
           color: piece.color === 'w' ? 'b' : 'w',
           type: "q"
         }, square);
         
-        // Return the attackers of that piece
+        // Return penyerang ratu tersebut (yaitu pembela buah asli)
         return getAttackers(board.fen(), square);
       } catch (e) {
         console.warn("Failed to place test piece:", e);
@@ -280,6 +299,13 @@ export function getDefenders(fen, square) {
   }
 }
 
+/**
+ * Memeriksa apakah buah catur "hanging" (terancam diambil)
+ * @param {string} lastFen - FEN string sebelum langkah
+ * @param {string} fen - FEN string setelah langkah
+ * @param {string} square - Notasi algebraik square buah (e.g., "e4")
+ * @returns {boolean} - true jika buah hanging, false jika tidak
+ */
 export function isPieceHanging(lastFen, fen, square) {
   try {
     // Initial null checks to prevent errors
@@ -294,21 +320,21 @@ export function isPieceHanging(lastFen, fen, square) {
     let lastPiece = lastBoard.get(square);
     let piece = board.get(square);
     
-    // If either piece is undefined, it's not hanging
+    // Jika tidak ada buah di salah satu posisi, return false
     if (!lastPiece || !piece) {
       return false;
     }
     
+    // Dapatkan penyerang dan pembela
     let attackers = getAttackers(fen, square);
     let defenders = getDefenders(fen, square);
     
-    // If piece was just traded equally or better, not hanging
+    // Jika buah baru saja ditukar sama/lebih baik, tidak hanging
     if (pieceValues[lastPiece.type] >= pieceValues[piece.type] && lastPiece.color !== piece.color) {
       return false;
     }
     
-    // If a rook took a minor piece that was only defended by one other
-    // minor piece, it was a favourable rook exchange, so rook not hanging
+    // Kasus khusus untuk benteng yang mengambil minor piece
     if (
       piece.type === "r" &&
       pieceValues[lastPiece.type] === 3 && 
@@ -318,19 +344,19 @@ export function isPieceHanging(lastFen, fen, square) {
       return false;
     }
     
-    // If piece has an attacker of lower value, hanging
+    // Jika buah memiliki penyerang dengan nilai lebih rendah, hanging
     if (attackers.some(atk => pieceValues[atk.type] < pieceValues[piece.type])) {
       return true;
     }
     
+    // Jika lebih banyak penyerang daripada pembela
     if (attackers.length > defenders.length) {
       let minAttackerValue = Infinity;
       for (let attacker of attackers) {
         minAttackerValue = Math.min(pieceValues[attacker.type], minAttackerValue);
       }
       
-      // If taking the piece even though it has more attackers than defenders
-      // would be a sacrifice in itself, not hanging
+      // Jika mengambil buah akan menjadi pengorbanan yang lebih besar, tidak hanging
       if (
         pieceValues[piece.type] < minAttackerValue && 
         defenders.some(dfn => pieceValues[dfn.type] < minAttackerValue)
@@ -338,9 +364,7 @@ export function isPieceHanging(lastFen, fen, square) {
         return false;
       }
       
-      // If any of the piece's defenders are pawns, then the sacrificed piece
-      // is the defending pawn. The least valuable attacker is equal in value
-      // to the sacrificed piece at this point of the logic
+      // Jika ada pion pembela, maka pion tersebutlah yang dikorbankan
       if (defenders.some(dfn => pieceValues[dfn.type] === 1)) {
         return false;
       }
@@ -351,6 +375,6 @@ export function isPieceHanging(lastFen, fen, square) {
     return false;
   } catch (e) {
     console.error("Error in isPieceHanging:", e, {lastFen, fen, square});
-    return false; // Safe default is "not hanging"
+    return false; // Default aman ke "tidak hanging"
   }
 }

@@ -17,7 +17,7 @@ const formatEval = (evaluation) => {
 };
 
 const EvaluationBar = () => {
-  const { currentPosition } = useGameContext();
+  const { currentMoveIndex, reportResults } = useGameContext();
   const [whiteHeight, setWhiteHeight] = useState(50);
   const [blackHeight, setBlackHeight] = useState(50);
   const [evalDisplay, setEvalDisplay] = useState("0.0");
@@ -37,12 +37,15 @@ const EvaluationBar = () => {
   }, []);
   
   useEffect(() => {
-    // Safely get evaluation from current position
+    // Get the current position from reportResults instead of currentPosition
+    const position = reportResults?.positions?.[currentMoveIndex];
+    
+    // Safely get evaluation from current position in reportResults
     let evaluation = { type: "cp", value: 0 };
     
     try {
-      if (currentPosition?.topLines?.length > 0) {
-        const topLine = currentPosition.topLines.find(line => line.id === 1);
+      if (position?.topLines?.length > 0) {
+        const topLine = position.topLines.find(line => line.id === 1);
         if (topLine?.evaluation) {
           evaluation = topLine.evaluation;
         }
@@ -91,7 +94,7 @@ const EvaluationBar = () => {
       setShowWhiteText(whiteWinning);
       setShowBlackText(!whiteWinning);
     }
-  }, [currentPosition]);
+  }, [currentMoveIndex, reportResults]);
   
   // Find the player info bars to get their height
   const getPlayerBarsHeight = () => {

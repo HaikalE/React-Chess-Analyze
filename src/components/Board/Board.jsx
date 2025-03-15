@@ -32,9 +32,9 @@ const Board = () => {
           <div className="py-2 px-3 bg-secondary-700 rounded-t-md flex justify-between items-center h-[36px]">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-secondary-400"></div>
-              <span className="text-sm sm:text-base font-medium">{topPlayerProfile.username}</span>
+              <span className="text-sm sm:text-base font-medium text-secondary-100">{topPlayerProfile.username}</span>
             </div>
-            <span className="text-sm font-mono bg-secondary-600 py-0.5 px-2 rounded">
+            <span className="text-sm font-mono bg-secondary-600 py-0.5 px-2 rounded text-secondary-200">
               {topPlayerProfile.rating}
             </span>
           </div>
@@ -55,20 +55,22 @@ const Board = () => {
           <div className="py-2 px-3 bg-secondary-700 rounded-b-md flex justify-between items-center h-[36px]">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-white"></div>
-              <span className="text-sm sm:text-base font-medium">{bottomPlayerProfile.username}</span>
+              <span className="text-sm sm:text-base font-medium text-secondary-100">{bottomPlayerProfile.username}</span>
             </div>
-            <span className="text-sm font-mono bg-secondary-600 py-0.5 px-2 rounded">
+            <span className="text-sm font-mono bg-secondary-600 py-0.5 px-2 rounded text-secondary-200">
               {bottomPlayerProfile.rating}
             </span>
           </div>
+          
+          {/* Board controls - now inside the flex column with the chess board */}
+          <div className="mt-3">
+            <BoardControls 
+              showSuggestionArrows={showSuggestionArrows} 
+              setShowSuggestionArrows={setShowSuggestionArrows} 
+            />
+          </div>
         </div>
       </div>
-      
-      {/* Board controls */}
-      <BoardControls 
-        showSuggestionArrows={showSuggestionArrows} 
-        setShowSuggestionArrows={setShowSuggestionArrows} 
-      />
     </div>
   );
 };
