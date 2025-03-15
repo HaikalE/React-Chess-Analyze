@@ -7,7 +7,6 @@ import {
   isEvalTextVisible
 } from '../../utils/evalUtils';
 import { getMovedPlayer } from '../../utils/boardUtils';
-import './EvaluationBar.css';
 
 const EvaluationBar = () => {
   const { currentPosition, boardFlipped, currentMoveIndex, positions } = useGameContext();
@@ -43,54 +42,28 @@ const EvaluationBar = () => {
   const showBlackText = isEvalTextVisible(evaluation, boardFlipped, "black");
   
   return (
-    <div className="evaluation-bar-container">
-      <svg width="40" height="730" className="evaluation-bar">
-        {/* Black area */}
-        <rect
-          x="0"
-          y="0"
-          width="40"
-          height={`${blackHeight}%`}
-          fill="#000000"
-          className="black-rect"
-        />
-        
-        {/* White area */}
-        <rect
-          x="0"
-          y={`${blackHeight}%`}
-          width="40"
-          height={`${whiteHeight}%`}
-          fill="#ffffff"
-          className="white-rect"
-        />
-        
-        {/* Black evaluation text */}
-        <text
-          x="20"
-          y="20"
-          fill="#ffffff"
-          fontSize="16"
-          textAnchor="middle"
-          visibility={showBlackText ? "visible" : "hidden"}
-          className="black-eval-text"
-        >
-          {formattedEval}
-        </text>
-        
-        {/* White evaluation text */}
-        <text
-          x="20"
-          y="710"
-          fill="#000000"
-          fontSize="16"
-          textAnchor="middle"
-          visibility={showWhiteText ? "visible" : "hidden"}
-          className="white-eval-text"
-        >
-          {formattedEval}
-        </text>
-      </svg>
+    <div className="w-5 mr-2 rounded-md overflow-hidden shadow-inner bg-secondary-700 flex flex-col">
+      <div 
+        style={{ height: `${blackHeight}%` }}
+        className="w-full bg-secondary-900 transition-all duration-500 ease-out flex items-start justify-center"
+      >
+        {showBlackText && (
+          <span className="text-xs font-mono text-white font-semibold pt-1 leading-none">
+            {formattedEval}
+          </span>
+        )}
+      </div>
+      
+      <div
+        style={{ height: `${whiteHeight}%` }}
+        className="w-full bg-white transition-all duration-500 ease-out flex items-end justify-center"
+      >
+        {showWhiteText && (
+          <span className="text-xs font-mono text-secondary-900 font-semibold pb-1 leading-none">
+            {formattedEval}
+          </span>
+        )}
+      </div>
     </div>
   );
 };

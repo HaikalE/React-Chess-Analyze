@@ -7,11 +7,11 @@ import {
   faArrowLeft, 
   faArrowRight, 
   faForwardStep,
-  faFloppyDisk
+  faFloppyDisk,
+  faLightbulb
 } from '@fortawesome/free-solid-svg-icons';
-import './BoardControls.css';
 
-const BoardControls = ({ onSave }) => {
+const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }) => {
   const { 
     goToStart, 
     prevMove, 
@@ -21,10 +21,10 @@ const BoardControls = ({ onSave }) => {
   } = useGameContext();
   
   return (
-    <div className="board-controls">
-      <div className="board-controls-buttons">
+    <div className="w-full mt-4 flex flex-col sm:flex-row justify-between gap-2">
+      <div className="flex justify-center">
         <button 
-          className="control-button" 
+          className="btn-secondary rounded-l-md rounded-r-none px-3 py-2 border-r border-secondary-600"
           onClick={flipBoard}
           title="Flip Board"
         >
@@ -32,7 +32,7 @@ const BoardControls = ({ onSave }) => {
         </button>
         
         <button 
-          className="control-button" 
+          className="btn-secondary px-3 py-2 border-r border-secondary-600"
           onClick={goToStart}
           title="Back to Start"
         >
@@ -40,7 +40,7 @@ const BoardControls = ({ onSave }) => {
         </button>
         
         <button 
-          className="control-button" 
+          className="btn-secondary px-3 py-2 border-r border-secondary-600"
           onClick={prevMove}
           title="Previous Move"
         >
@@ -48,7 +48,7 @@ const BoardControls = ({ onSave }) => {
         </button>
         
         <button 
-          className="control-button" 
+          className="btn-secondary px-3 py-2 border-r border-secondary-600"
           onClick={nextMove}
           title="Next Move"
         >
@@ -56,7 +56,7 @@ const BoardControls = ({ onSave }) => {
         </button>
         
         <button 
-          className="control-button" 
+          className="btn-secondary px-3 py-2 border-r border-secondary-600"
           onClick={goToEnd}
           title="Go to End"
         >
@@ -64,7 +64,7 @@ const BoardControls = ({ onSave }) => {
         </button>
         
         <button 
-          className="control-button" 
+          className="btn-secondary rounded-r-md rounded-l-none px-3 py-2"
           onClick={onSave}
           title="Save Analysis"
         >
@@ -72,9 +72,18 @@ const BoardControls = ({ onSave }) => {
         </button>
       </div>
       
-      <div className="footer">
-        A website by wintrcat
-        <a href="/privacy">Privacy Policy</a>
+      <div className="flex items-center justify-center sm:justify-end">
+        <button
+          className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded transition-colors ${
+            showSuggestionArrows 
+              ? 'bg-accent-600 hover:bg-accent-700 text-white' 
+              : 'bg-secondary-700 hover:bg-secondary-600 text-secondary-300'
+          }`}
+          onClick={() => setShowSuggestionArrows(!showSuggestionArrows)}
+        >
+          <FontAwesomeIcon icon={faLightbulb} />
+          <span className="hidden sm:inline">Suggestions</span>
+        </button>
       </div>
     </div>
   );

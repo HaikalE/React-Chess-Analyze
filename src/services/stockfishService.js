@@ -3,10 +3,9 @@
  */
 export class Stockfish {
     constructor() {
+      // Use CDN version instead of local files
       this.worker = new Worker(
-        typeof WebAssembly === "object"
-          ? "/scripts/stockfish-nnue-16.js"
-          : "/scripts/stockfish.js"
+        "https://cdn.jsdelivr.net/gh/niklasf/stockfish.wasm@10/stockfish.js"
       );
       
       this.depth = 0;
@@ -86,9 +85,9 @@ export class Stockfish {
         });
         
         this.worker.addEventListener("error", () => {
-          // Terminate the current Stockfish, switch to Stockfish 11 as fallback engine
+          // Terminate the current Stockfish, switch to alternate CDN as fallback
           this.worker.terminate();
-          this.worker = new Worker("/scripts/stockfish.js");
+          this.worker = new Worker("https://unpkg.com/@lichess-org/stockfish-wasm@1.0.0/stockfish.js");
           
           this.worker.postMessage("uci");
           this.worker.postMessage("setoption name MultiPV value 2");

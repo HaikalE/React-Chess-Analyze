@@ -1,33 +1,27 @@
 import React from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { classificationColors } from '../../utils/boardUtils';
-import './AccuracyStats.css';
 
 const ClassificationCount = ({ classification, whiteCount, blackCount }) => {
   return (
-    <div className="classification-count-row">
-      <div 
-        className="classification-count-white"
-        style={{ color: classificationColors[classification] }}
-      >
-        {whiteCount}
+    <div className="flex justify-between items-center text-sm">
+      <div className="w-10 text-right" style={{ color: classificationColors[classification] }}>
+        {whiteCount || '-'}
       </div>
       
-      <div className="classification-count-content">
+      <div className="flex items-center mx-2">
         <img 
           src={`/static/media/${classification}.png`}
           alt={classification}
+          className="w-5 h-5 mr-1.5"
         />
         <div style={{ color: classificationColors[classification] }}>
           {classification}
         </div>
       </div>
       
-      <div 
-        className="classification-count-black"
-        style={{ color: classificationColors[classification] }}
-      >
-        {blackCount}
+      <div className="w-10" style={{ color: classificationColors[classification] }}>
+        {blackCount || '-'}
       </div>
     </div>
   );
@@ -44,26 +38,28 @@ const AccuracyStats = () => {
   const opening = currentPosition?.opening;
   
   return (
-    <div className="accuracy-stats">
-      <div className="accuracies-container">
-        <h2 className="accuracies-title">
-          Accuracies
-          <div className="accuracy-values">
-            <span className="accuracy white-accuracy">
+    <div className="card bg-secondary-700/50 border-secondary-600">
+      <div className="mb-3">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="font-medium">Game Accuracy</h3>
+          <div className="flex items-center gap-1">
+            <div className="flex items-center justify-center w-14 h-8 bg-white text-black font-mono font-bold rounded">
               {accuracies.white.toFixed(1)}%
-            </span>
-            <span className="accuracy black-accuracy">
+            </div>
+            <div className="flex items-center justify-center w-14 h-8 bg-black text-white font-mono font-bold rounded">
               {accuracies.black.toFixed(1)}%
-            </span>
+            </div>
           </div>
-        </h2>
+        </div>
         
         {opening && (
-          <span className="opening-name">{opening}</span>
+          <div className="text-sm bg-secondary-700 py-1.5 px-3 rounded border border-secondary-600 text-center">
+            Opening: <span className="text-primary-300">{opening}</span>
+          </div>
         )}
       </div>
       
-      <div className="classification-count-container">
+      <div className="grid grid-cols-1 gap-1.5">
         {Object.keys(classifications.white)
           .filter(classification => classification !== 'book' && classification !== 'forced')
           .map(classification => (

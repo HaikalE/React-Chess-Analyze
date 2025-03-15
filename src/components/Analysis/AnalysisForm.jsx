@@ -9,9 +9,10 @@ import {
   faArrowRight,
   faBolt,
   faWind,
-  faHourglassHalf 
+  faHourglassHalf,
+  faChessPawn,
+  faSpinner
 } from '@fortawesome/free-solid-svg-icons';
-import './AnalysisForm.css';
 
 const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
   const { 
@@ -28,7 +29,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
   const [username, setUsername] = useState('');
   const [depth, setDepth] = useState(16);
   const [showArrows, setShowArrows] = useState(true);
-  const [secondaryMessage, setSecondaryMessage] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
   const [showCaptcha, setShowCaptcha] = useState(false);
   
@@ -40,15 +41,15 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
     }
   }, [loadType]);
   
-  // Update secondary message during analysis
+  // Update status message during analysis
   useEffect(() => {
     if (isAnalysisRunning) {
-      setSecondaryMessage('It can take around a minute to process a full game.');
+      setStatusMessage('Processing game, this may take a minute...');
     } else if (evaluatedPositions?.length > 0 && !reportResults) {
-      setSecondaryMessage('Please complete the CAPTCHA to continue.');
+      setStatusMessage('Please complete the verification to continue.');
       setShowCaptcha(true);
     } else {
-      setSecondaryMessage('');
+      setStatusMessage('');
       setShowCaptcha(false);
     }
   }, [isAnalysisRunning, evaluatedPositions, reportResults]);
@@ -58,9 +59,9 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
     setLoadType(newLoadType);
     
     if (newLoadType === 'json') {
-      setSecondaryMessage('Enter JSON from saved analysis');
+      setStatusMessage('Enter JSON from saved analysis');
     } else {
-      setSecondaryMessage('');
+      setStatusMessage('');
     }
   };
   
@@ -73,16 +74,16 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
         const success = loadSavedAnalysis(savedAnalysis);
         
         if (!success) {
-          setSecondaryMessage('Invalid analysis file');
+          setStatusMessage('Invalid analysis file');
         }
       } catch (error) {
-        setSecondaryMessage('Invalid JSON format');
+        setStatusMessage('Invalid JSON format');
       }
       return;
     }
     
     if (!pgnText.trim()) {
-      setSecondaryMessage('Please enter PGN to analyze');
+      setStatusMessage('Please enter PGN to analyze');
       return;
     }
     
@@ -105,7 +106,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
   
   const handleFetchGames = () => {
     if (!username.trim()) {
-      setSecondaryMessage('Please enter a username');
+      setStatusMessage('Please enter a username');
       return;
     }
     
@@ -116,53 +117,58 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
     onShowGameSelect(loadType, username);
   };
   
-  const handleDepthChange = (e) => {
-    const newDepth = parseInt(e.target.value);
-    setDepth(newDepth);
-  };
-  
   return (
-    <div className="analysis-form">
-      <div className="load-type-container">
+    <div className="flex flex-col gap-3">
+      {/* Source selection */}
+      <div className="flex gap-1">
         <select 
           id="load-type-dropdown"
           value={loadType}
           onChange={handleLoadTypeChange}
-          className="load-type-dropdown"
+          className="input bg-secondary-700 text-sm flex-grow rounded-r-none"
         >
           <option value="pgn">PGN</option>
           <option value="chesscom">Chess.com</option>
           <option value="lichess">Lichess.org</option>
           <option value="json">JSON</option>
         </select>
+        
+        {/* Depth setting */}
+        <div className="relative group">
+          <select
+            value={depth}
+            onChange={(e) => setDepth(parseInt(e.target.value))}
+            className="input bg-secondary-700 text-sm rounded-l-none font-mono"
+          >
+            <option value="14">14 {/* Quick */}</option>
+            <option value="16">16 {/* Standard */}</option>
+            <option value="18">18 {/* Deep */}</option>
+            <option value="20">20 {/* Very Deep */}</option>
+          </select>
+          <div className="absolute hidden group-hover:block bg-secondary-800 text-xs p-2 rounded shadow-lg -top-10 right-0 w-28">
+            Analysis depth
+          </div>
+        </div>
       </div>
       
       {/* PGN or JSON input */}
-      {(loadType === 'pgn' || loadType === 'json') && (
-        <div className="game-input-container">
-          <textarea
-            id="pgn"
-            value={pgnText}
-            onChange={(e) => setPgnText(e.target.value)}
-            className="game-input"
-            placeholder={loadType === 'pgn' ? 'Enter PGN...' : 'Enter JSON...'}
-          />
-        </div>
-      )}
-      
-      {/* Username input for Chess.com or Lichess */}
-      {(loadType === 'chesscom' || loadType === 'lichess') && (
-        <div className="game-input-container username-container">
-          <textarea
-            id="chess-site-username"
+      {(loadType === 'pgn' || loadType === 'json') ? (
+        <textarea
+          value={pgnText}
+          onChange={(e) => setPgnText(e.target.value)}
+          placeholder={loadType === 'pgn' ? 'Enter PGN...' : 'Enter JSON...'}
+          className="input text-sm min-h-[100px]"
+        />
+      ) : (
+        <div className="flex">
+          <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="game-input username-input"
             placeholder="Username..."
-            maxLength={48}
+            className="input text-sm flex-grow rounded-r-none"
           />
           <button 
-            className="fetch-games-button"
+            className="bg-primary-600 hover:bg-primary-700 text-white px-3 rounded-r-md"
             onClick={handleFetchGames}
           >
             <FontAwesomeIcon icon={faArrowRight} />
@@ -170,96 +176,50 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText }) => {
         </div>
       )}
       
-      {/* Analyze button */}
+      {/* Action buttons */}
       <button 
-        className="analyze-button"
+        className={`btn-accent flex items-center justify-center gap-2 ${isAnalysisRunning ? 'opacity-70 cursor-not-allowed' : ''}`}
         onClick={handleAnalysisStart}
         disabled={isAnalysisRunning}
       >
-        <FontAwesomeIcon icon={faMagnifyingGlass} className="analyze-icon" />
-        <b>Analyse</b>
+        {isAnalysisRunning ? (
+          <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
+        ) : (
+          <FontAwesomeIcon icon={faMagnifyingGlass} className="animate-pulse" />
+        )}
+        <span className="font-semibold">Analyze Game</span>
       </button>
       
       {/* Progress bar */}
       {isAnalysisRunning && (
-        <progress 
-          className="analysis-progress" 
-          value={analysisProgress} 
-          max={100} 
-        />
+        <div className="w-full bg-secondary-700 rounded overflow-hidden h-2">
+          <div 
+            className="bg-accent-500 h-full transition-all duration-300"
+            style={{ width: `${analysisProgress}%` }}
+          ></div>
+        </div>
       )}
       
       {/* Status message */}
-      {analysisStatus && (
-        <div className={`status-message ${error ? 'error' : ''}`}>
-          <FontAwesomeIcon icon={faCircleInfo} />
-          {analysisStatus}
+      {(analysisStatus || statusMessage) && (
+        <div className={`text-sm py-2 px-3 rounded ${error ? 'bg-error-500/20 text-error-500' : 'bg-secondary-700 text-secondary-300'}`}>
+          <FontAwesomeIcon icon={faCircleInfo} className="mr-1.5" />
+          {analysisStatus || statusMessage}
         </div>
       )}
       
-      {/* Secondary message */}
-      {secondaryMessage && (
-        <div className="secondary-message">{secondaryMessage}</div>
-      )}
-      
-      {/* reCAPTCHA placeholder (would need actual implementation) */}
+      {/* Captcha placeholder */}
       {showCaptcha && (
-        <div className="captcha-container">
-          {/* In a real implementation, you'd use the actual reCAPTCHA component here */}
+        <div className="flex justify-center mt-1">
           <button 
-            className="captcha-button"
+            className="btn-secondary text-sm flex items-center gap-2"
             onClick={() => handleCaptchaSubmit('demo-token')}
           >
-            Complete CAPTCHA (Demo)
+            <FontAwesomeIcon icon={faChessPawn} />
+            Verify and Complete Analysis
           </button>
         </div>
       )}
-      
-      {/* Depth settings */}
-      <div className="depth-container">
-        <div className="depth-header">
-          <span className="depth-title">
-            <FontAwesomeIcon icon={faGear} />
-            <p>Depth</p>
-          </span>
-          
-          <div className="arrows-toggle">
-            <span>Arrows|</span>
-            <label className="toggle" htmlFor="suggestion-arrows-setting">
-              <input
-                id="suggestion-arrows-setting"
-                type="checkbox"
-                checked={showArrows}
-                onChange={() => setShowArrows(!showArrows)}
-              />
-              <div className="toggle-fill"></div>
-            </label>
-          </div>
-        </div>
-        
-        <div className="depth-slider-container">
-          <input
-            type="range"
-            min="14"
-            max="20"
-            value={depth}
-            onChange={handleDepthChange}
-            className="depth-slider"
-          />
-          <span className="depth-counter">
-            {depth}|
-            <FontAwesomeIcon 
-              icon={
-                depth <= 14 
-                  ? faBolt 
-                  : depth <= 17 
-                    ? faWind 
-                    : faHourglassHalf
-              } 
-            />
-          </span>
-        </div>
-      </div>
     </div>
   );
 };

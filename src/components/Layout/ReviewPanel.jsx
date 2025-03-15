@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChessKnight } from '@fortawesome/free-solid-svg-icons';
+import { faChessKnight, faLightbulb } from '@fortawesome/free-solid-svg-icons';
 import useAnalysis from '../../hooks/useAnalysis';
 import AnalysisForm from '../Analysis/AnalysisForm';
 import AccuracyStats from '../Analysis/AccuracyStats';
 import ClassificationDisplay from '../Analysis/ClassificationDisplay';
 import EngineSuggestions from '../Analysis/EngineSuggestions';
 import EvaluationGraph from '../Board/EvaluationGraph';
-import BoardControls from '../Board/BoardControls';
 import GameSelectModal from '../GameSelect/GameSelectModal';
 import { useGameContext } from '../../contexts/GameContext';
-import './ReviewPanel.css';
 
 const ReviewPanel = () => {
   const { reportResults } = useGameContext();
@@ -46,32 +44,45 @@ const ReviewPanel = () => {
   };
   
   return (
-    <div className="review-panel">
-      <div className="review-panel-main">
-        <div className="review-panel-wrapper">
-          <h1 className="panel-title">
-            <FontAwesomeIcon icon={faChessKnight} className="knight-icon" />
-            Game Report
-          </h1>
-          
-          <AnalysisForm 
-            onShowGameSelect={handleShowGameSelect} 
-            pgnText={pgnText}
-            setPgnText={setPgnText}
-          />
-          
-          {reportResults && (
-            <div className="report-cards">
-              <AccuracyStats />
-              <ClassificationDisplay />
-              <EngineSuggestions />
-              <EvaluationGraph />
-            </div>
-          )}
-        </div>
+    <div className="card w-full lg:w-96 flex flex-col h-full gap-4 max-h-screen lg:max-h-[90vh] overflow-hidden">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <FontAwesomeIcon icon={faChessKnight} className="text-primary-400" />
+          Game Analysis
+        </h2>
+        
+        {reportResults && (
+          <button 
+            onClick={handleSaveAnalysis}
+            className="btn-primary text-xs px-2 py-1"
+          >
+            Save Report
+          </button>
+        )}
       </div>
       
-      <BoardControls onSave={handleSaveAnalysis} />
+      <AnalysisForm 
+        onShowGameSelect={handleShowGameSelect} 
+        pgnText={pgnText}
+        setPgnText={setPgnText}
+      />
+      
+      {reportResults ? (
+        <div className="overflow-y-auto flex-1 flex flex-col gap-4 pr-1 pb-2">
+          <AccuracyStats />
+          <ClassificationDisplay />
+          <EngineSuggestions />
+          <EvaluationGraph />
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 text-secondary-400">
+          <FontAwesomeIcon icon={faLightbulb} className="text-4xl mb-3 text-secondary-600" />
+          <h3 className="text-lg font-medium mb-2">No Analysis Yet</h3>
+          <p className="text-sm">
+            Enter a PGN above or import a game from Chess.com or Lichess to analyze your chess game.
+          </p>
+        </div>
+      )}
       
       <GameSelectModal 
         isOpen={showGameSelect}

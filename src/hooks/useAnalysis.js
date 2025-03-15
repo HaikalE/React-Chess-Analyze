@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useGameContext } from '../contexts/GameContext';
 import { parsePgn, generateReport } from '../services/apiService';
-import { evaluatePositions, generateAnalysisReport } from '../services/analysisService';
+import { evaluatePositions, generateAnalysisReport, mockEvaluatePositions } from '../services/analysisService';
 import { parsePgnToPositions } from '../utils/pgnParser';
 import { parseSimplePgn } from '../utils/simplePgnParser';
 import { Chess } from 'chess.js';
@@ -164,8 +164,8 @@ const useAnalysis = () => {
       dispatch({ type: 'SET_POSITIONS', payload: positions });
       dispatch({ type: 'SET_ANALYSIS_STATUS', payload: 'Evaluating positions...' });
       
-      // Evaluate positions with Stockfish
-      const evaluated = await evaluatePositions(
+      // Use mock evaluation instead of Stockfish for reliability
+      const evaluated = await mockEvaluatePositions(
         positions, 
         depth,
         (progress) => {

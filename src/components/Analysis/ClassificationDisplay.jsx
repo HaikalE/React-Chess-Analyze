@@ -5,7 +5,6 @@ import {
   getClassificationMessage,
   shouldShowAlternative 
 } from '../../utils/classificationUtils';
-import './ClassificationDisplay.css';
 
 const ClassificationDisplay = () => {
   const { 
@@ -67,27 +66,26 @@ const ClassificationDisplay = () => {
   }
   
   return (
-    <>
-      <div className="classification-message-container">
-        <img 
-          src={iconSrc}
-          alt="Classification"
-          className="classification-icon"
-        />
-        <span 
-          className="classification-message"
-          style={{ color: messageColor }}
-        >
-          {message}
-        </span>
-      </div>
-      
-      {alternativeMessage && (
-        <div className="top-alternative-message">
-          {alternativeMessage}
+    <div className="card bg-secondary-700/50 border-secondary-600">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <img 
+            src={iconSrc}
+            alt="Classification"
+            className="w-6 h-6"
+          />
+          <div className="font-medium" style={{ color: messageColor }}>
+            {message}
+          </div>
         </div>
-      )}
-    </>
+        
+        {alternativeMessage && (
+          <div className="text-sm bg-secondary-700 py-1.5 px-3 rounded text-accent-400 font-medium">
+            {alternativeMessage}
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

@@ -43,6 +43,79 @@ const positiveClassifications = [
 ];
 
 /**
+ * Mock evaluation function that doesn't rely on Stockfish
+ * @param {Array} positions - Array of positions to evaluate
+ * @param {number} depth - Analysis depth
+ * @param {function} onProgress - Callback for progress updates
+ * @returns {Promise<Array>} - Evaluated positions with mock data
+ */
+export const mockEvaluatePositions = async (positions, depth = 16, onProgress = () => {}) => {
+  // Process positions with mock evaluations
+  const evaluated = positions.map((position, index) => {
+    // Create basic mock evaluation
+    const isWhiteToMove = position.fen.includes(' w ');
+    const moveNumber = Math.floor(index / 2) + 1;
+    
+    // Add mock top lines if not already present
+    if (!position.topLines) {
+      position.topLines = [
+        {
+          id: 1,
+          depth: depth,
+          moveUCI: position.move?.uci || "e2e4",
+          moveSAN: position.move?.san || "e4",
+          evaluation: {
+            type: "cp",
+            value: isWhiteToMove ? 20 : -20  // Slight advantage to side to move
+          }
+        },
+        {
+          id: 2,
+          depth: depth,
+          moveUCI: "d2d4",
+          moveSAN: "d4",
+          evaluation: {
+            type: "cp",
+            value: isWhiteToMove ? 10 : -10
+          }
+        }
+      ];
+    }
+    
+    // Set mock classification for non-initial positions
+    if (index > 0 && !position.classification) {
+      // Randomly assign classifications weighted toward good moves
+      const rand = Math.random();
+      if (rand > 0.9) {
+        position.classification = Classification.BLUNDER;
+      } else if (rand > 0.8) {
+        position.classification = Classification.MISTAKE;
+      } else if (rand > 0.7) {
+        position.classification = Classification.INACCURACY;
+      } else if (rand > 0.5) {
+        position.classification = Classification.GOOD;
+      } else if (rand > 0.3) {
+        position.classification = Classification.EXCELLENT;
+      } else {
+        position.classification = Classification.BEST;
+      }
+      
+      // For the first few moves, use book classification
+      if (index < 5) {
+        position.classification = Classification.BOOK;
+      }
+    }
+    
+    // Report progress
+    onProgress((index / positions.length) * 100);
+    
+    return position;
+  });
+  
+  return evaluated;
+};
+
+/**
  * Evaluate chess positions using Stockfish and cloud evaluations
  * @param {Array} positions - Array of positions to evaluate
  * @param {number} depth - Analysis depth

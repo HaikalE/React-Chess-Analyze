@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { 
+  faArrowLeft, 
+  faArrowRight, 
+  faSpinner,
+  faChessKnight,
+  faClock,
+  faXmark
+} from '@fortawesome/free-solid-svg-icons';
 import { fetchChessComGames, fetchLichessGames } from '../../services/apiService';
-import './GameSelectModal.css';
 
 const GameListing = ({ game, onSelect }) => {
   // Format player names and ratings for display
@@ -21,10 +27,29 @@ const GameListing = ({ game, onSelect }) => {
     return '';
   };
   
+  // Format time control
+  const getTimeControl = () => {
+    if (game.timeClass) {
+      const timeClass = game.timeClass.charAt(0).toUpperCase() + game.timeClass.slice(1);
+      return timeClass;
+    }
+    return 'Standard';
+  };
+  
   return (
-    <div className="game-listing" onClick={() => onSelect(game.pgn)}>
-      <b>{game.timeClass}</b>
-      <span>{getPlayersString()}</span>
+    <div 
+      className="flex flex-col sm:flex-row sm:items-center justify-between w-full p-3 bg-secondary-700 hover:bg-secondary-600 rounded-lg mb-2 cursor-pointer transition-colors"
+      onClick={() => onSelect(game.pgn)}
+    >
+      <div className="flex items-center mb-1 sm:mb-0">
+        <div className="bg-primary-700 text-white rounded-md p-1.5 mr-3">
+          <FontAwesomeIcon icon={faClock} className="text-sm" />
+        </div>
+        <div className="text-sm">{getPlayersString()}</div>
+      </div>
+      <div className="flex items-center text-xs font-semibold text-primary-300">
+        {getTimeControl()}
+      </div>
     </div>
   );
 };
@@ -39,6 +64,10 @@ const GameSelectModal = ({ isOpen, onClose, onSelectGame, source, username }) =>
   
   const padMonth = (month) => {
     return month.toString().padStart(2, '0');
+  };
+  
+  const getMonthName = (month) => {
+    return new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' });
   };
   
   // Fetch games when source, username, or period changes
@@ -121,52 +150,84 @@ const GameSelectModal = ({ isOpen, onClose, onSelectGame, source, username }) =>
   }
   
   return (
-    <div className="game-select-overlay">
-      <div className="game-select-menu">
-        <h1>Select a game</h1>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-secondary-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center p-4 border-b border-secondary-700">
+          <div className="flex items-center gap-2">
+            <FontAwesomeIcon icon={faChessKnight} className="text-xl text-primary-400" />
+            <h2 className="text-xl font-bold">
+              {source === 'chesscom' ? 'Chess.com' : 'Lichess'} Games
+            </h2>
+          </div>
+          
+          <button 
+            onClick={onClose}
+            className="text-secondary-400 hover:text-white bg-secondary-700 hover:bg-secondary-600 rounded-full p-1.5 transition-colors"
+          >
+            <FontAwesomeIcon icon={faXmark} />
+          </button>
+        </div>
         
-        <b className="game-select-period">
-          {padMonth(period.month)}/{period.year}
-        </b>
+        <div className="p-4 border-b border-secondary-700">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-secondary-300">
+              User: <span className="text-white font-medium">{username}</span>
+            </div>
+            
+            <div className="flex items-center">
+              <button 
+                className="bg-secondary-700 hover:bg-secondary-600 p-2 rounded-l-md transition-colors"
+                onClick={handlePreviousMonth}
+              >
+                <FontAwesomeIcon icon={faArrowLeft} />
+              </button>
+              
+              <div className="bg-secondary-700 px-4 py-2 font-medium">
+                {getMonthName(period.month)} {period.year}
+              </div>
+              
+              <button 
+                className="bg-secondary-700 hover:bg-secondary-600 p-2 rounded-r-md transition-colors"
+                onClick={handleNextMonth}
+              >
+                <FontAwesomeIcon icon={faArrowRight} />
+              </button>
+            </div>
+          </div>
+        </div>
         
-        <div className="games-list">
+        <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <p>Loading games...</p>
+            <div className="flex flex-col items-center justify-center h-40">
+              <FontAwesomeIcon icon={faSpinner} className="text-2xl text-primary-400 animate-spin mb-3" />
+              <p>Loading games...</p>
+            </div>
           ) : games.length === 0 ? (
-            <p>No games found.</p>
+            <div className="flex flex-col items-center justify-center h-40 text-secondary-400">
+              <p className="mb-2">No games found for this period.</p>
+              <p className="text-sm">Try a different month or check the username.</p>
+            </div>
           ) : (
-            games.map((game, index) => (
-              <GameListing 
-                key={index}
-                game={game}
-                onSelect={onSelectGame}
-              />
-            ))
+            <div className="space-y-1">
+              {games.map((game, index) => (
+                <GameListing 
+                  key={index}
+                  game={game}
+                  onSelect={onSelectGame}
+                />
+              ))}
+            </div>
           )}
         </div>
         
-        <div className="game-select-page-buttons">
+        <div className="p-4 border-t border-secondary-700">
           <button 
-            className="page-button"
-            onClick={handlePreviousMonth}
+            className="w-full bg-secondary-700 hover:bg-secondary-600 py-2 rounded-md transition-colors"
+            onClick={onClose}
           >
-            <FontAwesomeIcon icon={faArrowLeft} />
-          </button>
-          
-          <button 
-            className="page-button"
-            onClick={handleNextMonth}
-          >
-            <FontAwesomeIcon icon={faArrowRight} />
+            Cancel
           </button>
         </div>
-        
-        <button 
-          className="game-select-cancel-button"
-          onClick={onClose}
-        >
-          <b>Cancel</b>
-        </button>
       </div>
     </div>
   );
