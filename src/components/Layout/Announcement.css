@@ -1,0 +1,62 @@
+.announcement {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 15px;
+    margin-bottom: 15px;
+    padding: 5px;
+    width: 100vw;
+    background-color: var(--secondary-color);
+    position: relative;
+  }
+  
+  .announcement-message {
+    margin-left: 10px;
+    color: white;
+  }
+  
+  .heart-icon {
+    color: #ffffff;
+    margin-left: 5px;
+  }
+  
+  .announcement-buttons {
+    display: flex;
+  }
+  
+  .kofi-button,
+  .discord-button {
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    color: white;
+    border-radius: 10px;
+    padding: 10px;
+    background-color: var(--primary-color);
+    gap: 5px;
+    text-align: center;
+    transition: background-color 0.2s;
+  }
+  
+  .kofi-button:hover,
+  .discord-button:hover {
+    background-color: var(--border-color);
+  }
+  
+  .discord-button {
+    margin-right: 10px;
+    margin-left: 10px;
+  }
+  
+  .kofi-icon,
+  .discord-icon {
+    font-size: 20px;
+  }
+  
+  @media (max-width: 1105px) {
+    .button-text {
+      display: none;
+    }
+  }

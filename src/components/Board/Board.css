@@ -1,0 +1,84 @@
+.board-outer-container {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .board-inner-container {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .chess-board {
+    cursor: pointer;
+  }
+  
+  .profile {
+    color: white;
+    font-size: 20px;
+    background-color: var(--border-color);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  
+  .top-player-profile {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  
+  .bottom-player-profile {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  
+  @media only screen and (max-width: 1536px) {
+    .chess-board {
+      width: 511.2px !important;
+      height: 511.2px !important;
+    }
+    
+    .board-outer-container {
+      height: 625px !important;
+    }
+  }
+  
+  @media only screen and (max-width: 1030px) {
+    .chess-board {
+      width: 531.2px !important;
+      height: 531.2px !important;
+    }
+  }
+  
+  @media only screen and (max-width: 960px) {
+    .board-outer-container {
+      height: 590px !important;
+    }
+    
+    .chess-board {
+      width: 479px !important;
+      height: 479px !important;
+    }
+  }
+  
+  @media only screen and (max-width: 750px) {
+    .chess-board {
+      width: 335px !important;
+      height: 335px !important;
+    }
+    
+    .board-outer-container {
+      height: 430px !important;
+    }
+  }
+  
+  @media only screen and (max-width: 380px) {
+    .chess-board {
+      width: 272px !important;
+      height: 272px !important;
+    }
+    
+    .board-outer-container {
+      height: 380px !important;
+    }
+  }

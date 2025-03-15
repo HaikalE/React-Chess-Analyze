@@ -1,0 +1,95 @@
+.board-controls {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    border-radius: 10px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    padding: 10px 0;
+    background: linear-gradient(
+      90deg,
+      var(--dot-bg) calc(var(--dot-space) - var(--dot-size)),
+      transparent 1%
+    ) center / var(--dot-space) var(--dot-space),
+    linear-gradient(
+      var(--dot-bg) calc(var(--dot-space) - var(--dot-size)),
+      transparent 1%
+    ) center / var(--dot-space) var(--dot-space),
+    var(--dot-color);
+    
+    --dot-bg: var(--secondary-color);
+    --dot-color: var(--primary-color);
+    --dot-size: 2px;
+    --dot-space: 10px;
+    
+    border-top: 2px solid var(--border-color);
+  }
+  
+  .board-controls-buttons {
+    margin: 0;
+    flex-wrap: wrap;
+    gap: 0;
+    width: 90%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 50px;
+    background-color: var(--primary-color);
+    border-radius: 10px;
+  }
+  
+  .control-button {
+    background: none;
+    border: none;
+    color: white;
+    border-radius: 5px;
+    font-size: 25px;
+    padding: 10px 5%;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  
+  .control-button:hover {
+    color: #4caf50 !important;
+  }
+  
+  .footer {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    color: white;
+    margin-top: 10px;
+    font-size: 12px;
+  }
+  
+  .footer a {
+    color: white;
+    text-decoration: none;
+  }
+  
+  .footer a:hover {
+    color: #4caf50;
+  }
+  
+  @media only screen and (max-width: 960px) {
+    .board-controls {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #fff;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      width: 100%;
+      z-index: 9999;
+    }
+  }
+  
+  @media only screen and (max-width: 380px) {
+    .control-button {
+      font-size: 22px !important;
+    }
+  }

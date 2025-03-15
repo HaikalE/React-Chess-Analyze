@@ -1,0 +1,49 @@
+.evaluation-bar-container {
+    display: flex;
+    align-items: center;
+  }
+  
+  .evaluation-bar {
+    border: none;
+    border-radius: 0.2rem;
+  }
+  
+  .black-rect,
+  .white-rect {
+    transition: all 1s ease 0s;
+  }
+  
+  .black-eval-text,
+  .white-eval-text {
+    transition: all 0.5s ease;
+  }
+  
+  @media only screen and (max-width: 1536px) {
+    .evaluation-bar {
+      transform: scale(0.7);
+    }
+  }
+  
+  @media only screen and (max-width: 1030px) {
+    .evaluation-bar {
+      transform: scale(0.73);
+    }
+  }
+  
+  @media only screen and (max-width: 960px) {
+    .evaluation-bar {
+      transform: scale(0.66);
+    }
+  }
+  
+  @media only screen and (max-width: 750px) {
+    .evaluation-bar {
+      transform: scale(0.46);
+    }
+  }
+  
+  @media only screen and (max-width: 380px) {
+    .evaluation-bar {
+      transform: scale(0.37);
+    }
+  }
