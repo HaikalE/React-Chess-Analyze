@@ -1,10 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { classificationColors } from '../../utils/boardUtils';
-import { 
-  getClassificationMessage,
-  shouldShowAlternative 
-} from '../../utils/classificationUtils';
+import { determineMoveQuality } from '../../utils/moveQualityUtils';
+
+// Klasifikasi langkah terbaik yang tidak memerlukan alternatif
+const bestClassifications = [
+  "brilliant",
+  "great",
+  "best",
+  "book",
+  "forced"
+];
+
+// Pesan untuk setiap klasifikasi
+const getClassificationMessage = (classification, moveSan) => {
+  if (!classification || !moveSan) return "";
+  
+  const messages = {
+    "brilliant": "langkah brilian",
+    "great": "langkah hebat",
+    "best": "langkah terbaik",
+    "excellent": "langkah sangat baik",
+    "good": "langkah bagus",
+    "inaccuracy": "ketidaktepatan",
+    "mistake": "kesalahan",
+    "blunder": "blunder",
+    "book": "teori",
+    "forced": "langkah terpaksa"
+  };
+  
+  return `${moveSan} adalah ${messages[classification] || classification}`;
+};
+
+// Penentuan apakah perlu menampilkan alternatif
+const shouldShowAlternative = (classification) => {
+  return !bestClassifications.includes(classification);
+};
 
 const ClassificationDisplay = () => {
   const { 
@@ -28,30 +59,56 @@ const ClassificationDisplay = () => {
     const currentPosition = reportResults.positions[currentMoveIndex];
     const lastPosition = reportResults.positions[currentMoveIndex - 1];
     
-    if (!currentPosition || !currentPosition.classification) {
+    if (!currentPosition || !lastPosition) {
+      setMessage('');
+      setAlternativeMessage('');
+      return;
+    }
+    
+    // Tentukan klasifikasi kualitas langkah
+    let classification = currentPosition.classification;
+    
+    // Jika klasifikasi belum ada, tentukan dengan algoritma baru
+    if (!classification && currentPosition.move?.uci && lastPosition.topLines && currentPosition.topLines) {
+      classification = determineMoveQuality(
+        lastPosition.fen,
+        currentPosition.fen,
+        lastPosition.topLines[0]?.evaluation || { type: "cp", value: 0 },
+        currentPosition.topLines[0]?.evaluation || { type: "cp", value: 0 },
+        lastPosition.topLines,
+        currentPosition.topLines,
+        currentPosition.move.uci,
+        currentPosition.move.san
+      );
+      
+      // Simpan klasifikasi pada posisi (opsional)
+      currentPosition.classification = classification;
+    }
+    
+    if (!classification) {
       setMessage('');
       setAlternativeMessage('');
       return;
     }
     
     // Set the classification icon
-    setIconSrc(`/static/media/${currentPosition.classification}.png`);
+    setIconSrc(`/static/media/${classification}.png`);
     
     // Set the classification message
     const formattedMessage = getClassificationMessage(
-      currentPosition.classification,
+      classification,
       currentPosition.move?.san
     );
     
     setMessage(formattedMessage);
-    setMessageColor(classificationColors[currentPosition.classification]);
+    setMessageColor(classificationColors[classification]);
     
     // Set alternative move message if needed
-    if (shouldShowAlternative(currentPosition.classification) && lastPosition) {
+    if (shouldShowAlternative(classification) && lastPosition) {
       const topAlternative = lastPosition.topLines?.[0]?.moveSAN;
       
       if (topAlternative) {
-        setAlternativeMessage(`Best was ${topAlternative}`);
+        setAlternativeMessage(`Terbaik adalah ${topAlternative}`);
       } else {
         setAlternativeMessage('');
       }

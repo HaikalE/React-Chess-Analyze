@@ -22,11 +22,14 @@ const Board = () => {
   return (
     <div className="card flex flex-col items-center">
       <div className="flex w-full max-w-xl">
-        <EvaluationBar />
+        {/* The key change is setting a fixed height here that matches the board */}
+        <div className="flex" style={{ height: `${BOARD_SIZE + 72}px` }}> {/* 72px accounts for player bars */}
+          <EvaluationBar />
+        </div>
         
         <div className="flex-1 flex flex-col">
           {/* Top player */}
-          <div className="py-2 px-3 bg-secondary-700 rounded-t-md flex justify-between items-center">
+          <div className="py-2 px-3 bg-secondary-700 rounded-t-md flex justify-between items-center h-[36px]">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-secondary-400"></div>
               <span className="text-sm sm:text-base font-medium">{topPlayerProfile.username}</span>
@@ -49,7 +52,7 @@ const Board = () => {
           </div>
           
           {/* Bottom player */}
-          <div className="py-2 px-3 bg-secondary-700 rounded-b-md flex justify-between items-center">
+          <div className="py-2 px-3 bg-secondary-700 rounded-b-md flex justify-between items-center h-[36px]">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-white"></div>
               <span className="text-sm sm:text-base font-medium">{bottomPlayerProfile.username}</span>
