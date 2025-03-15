@@ -12,17 +12,12 @@ export const parsePgnToPositions = (pgn) => {
     throw new Error('Invalid PGN: Empty or not a string');
   }
   
-  console.log("Parsing PGN:", pgn);
-  
-  // Clean up the PGN
-  const cleanPgn = pgn.trim();
-  
   // Extract headers for player info
   const headers = {};
   const headerRegex = /\[(.*?)\s+"(.*?)"\]/g;
   let headerMatch;
   
-  while ((headerMatch = headerRegex.exec(cleanPgn)) !== null) {
+  while ((headerMatch = headerRegex.exec(pgn)) !== null) {
     headers[headerMatch[1]] = headerMatch[2];
   }
   
@@ -38,12 +33,39 @@ export const parsePgnToPositions = (pgn) => {
     }
   };
   
-  // Try using chess.js to load the PGN directly first
+  // Clean PGN data by removing problematic elements
+  let cleanedPgn = pgn
+    // Remove comments
+    .replace(/\{[^}]*\}/g, '')
+    // Remove NAGs ($1, $2, etc.)
+    .replace(/\$\d+/g, '')
+    // Remove result at the end
+    .replace(/\s+(?:1-0|0-1|1\/2-1\/2|\*)\s*$/, '')
+    // Remove clock annotations
+    .replace(/\s\{\[%clk\s[^}]*\]\}/g, '')
+    // Remove line breaks in moves section
+    .replace(/(\]\s*\n+)([1-9])/g, '$1\n$2')
+    // Remove variations/alternatives
+    .replace(/\([^\(\)]*(?:\([^\(\)]*\)[^\(\)]*)*\)/g, '');
+  
+  // Special handling for common parsing issues
+  cleanedPgn = cleanedPgn
+    // Fix common problematic annotations
+    .replace(/Cannot\s+move/gi, '')
+    .replace(/Invalid\s+move/gi, '')
+    .replace(/Illegal\s+move/gi, '')
+    // Fix common Chess.com formatting issues
+    .replace(/\b(\d+)\.\.\./, '$1...')
+    // Fix common Lichess formatting issues
+    .replace(/\b(\d+)\.{3}\s*([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)/, '$1... $2');
+  
+  console.log("Cleaned PGN for parsing:", cleanedPgn);
+  
+  // Try parsing with chess.js
   const chess = new Chess();
   
   try {
-    if (chess.loadPgn(cleanPgn, { sloppy: true })) {
-      console.log("Successfully parsed PGN with chess.js loadPgn");
+    if (chess.loadPgn(cleanedPgn, { sloppy: true })) {
       // If successful, get all moves and generate positions
       const history = chess.history({ verbose: true });
       
@@ -71,92 +93,42 @@ export const parsePgnToPositions = (pgn) => {
       return { positions, playerInfo };
     }
   } catch (error) {
-    console.warn('Standard PGN parsing failed, trying alternative method:', error);
-    // Continue to alternative method below
+    console.warn('Standard parsing failed, trying manual extraction:', error);
   }
   
-  // If chess.js direct loading fails, try a more robust manual approach
+  // If chess.js parsing fails, try extracting and applying moves manually
   try {
-    console.log("Trying alternative PGN parsing method");
+    // Extract moves only (after headers)
+    const movesSection = cleanedPgn.replace(/\[[^\]]*\]/g, '').trim();
     
-    // Find the section with moves using a more flexible approach
-    let movesText = cleanPgn;
+    // Process the move text to extract moves
+    const moveMatches = movesSection.match(/\d+\.+\s*([^\s.]+)(?:\s+([^\s.]+))?/g) || [];
+    const extractedMoves = [];
     
-    // Remove all header lines from the PGN to find the moves section
-    const headerLines = cleanPgn.match(/^\[.*\].*$/gm);
-    if (headerLines) {
-      for (const line of headerLines) {
-        movesText = movesText.replace(line, '');
+    for (const moveMatch of moveMatches) {
+      // Extract white and black moves from notation like "1. e4 e5"
+      const parts = moveMatch.split(/\s+/);
+      for (let i = 1; i < parts.length; i++) {
+        if (parts[i] && !parts[i].match(/^\d+\.+$/)) {
+          extractedMoves.push(parts[i]);
+        }
       }
-    }
-    
-    // Trim and clean up the moves text
-    movesText = movesText.trim();
-    console.log("Extracted moves text:", movesText);
-    
-    // If no moves found, throw an error
-    if (!movesText) {
-      throw new Error('No move text found after removing headers');
-    }
-    
-    // Clean up move text - remove clocks, annotations, etc.
-    const cleanMovesText = movesText
-      .replace(/\{[^}]*\}/g, '') // Remove comments
-      .replace(/\([^)]*\)/g, '') // Remove variations
-      .replace(/\$\d+/g, '') // Remove NAGs
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
-    
-    console.log("Cleaned moves text:", cleanMovesText);
-    
-    // Extract moves - first try move numbers pattern
-    let extractedMoves = [];
-    const movePattern = /\d+\.\s*(\S+)(?:\s+(\S+))?/g;
-    let moveMatch;
-    
-    while ((moveMatch = movePattern.exec(cleanMovesText)) !== null) {
-      if (moveMatch[1]) extractedMoves.push(moveMatch[1]);
-      if (moveMatch[2]) extractedMoves.push(moveMatch[2]);
-    }
-    
-    // If no moves found with the pattern, just split by spaces and filter
-    if (extractedMoves.length === 0) {
-      console.log("No moves found with pattern, trying simple split");
-      extractedMoves = cleanMovesText.split(/\s+/).filter(token => {
-        // Filter out move numbers and result indicators
-        return !token.match(/^\d+\./) && 
-               !['1-0', '0-1', '1/2-1/2', '*'].includes(token);
-      });
     }
     
     console.log("Extracted moves:", extractedMoves);
     
-    // If still no moves, one more attempt - just try to play the whole text as a move sequence
-    if (extractedMoves.length === 0) {
-      console.log("Last resort - trying to load the entire move text");
-      chess.reset();
-      if (chess.loadPgn(cleanMovesText, { sloppy: true })) {
-        extractedMoves = chess.history();
-      } else {
-        throw new Error('Could not extract any valid moves from the PGN');
-      }
-    }
-    
-    // Reset the chess instance
+    // Apply moves one by one
     chess.reset();
-    
-    // Apply moves and build positions array
-    const positions = [];
-    positions.push({ fen: chess.fen() });
+    const positions = [{ fen: chess.fen() }];
     
     for (const moveText of extractedMoves) {
-      // Skip result indicators and move numbers
-      if (moveText === '1-0' || moveText === '0-1' || moveText === '1/2-1/2' || moveText === '*' || 
-          moveText.match(/^\d+\./)) {
-        continue;
-      }
-      
       try {
+        // Skip result indicators and invalid notations
+        if (moveText === '1-0' || moveText === '0-1' || moveText === '1/2-1/2' || moveText === '*' || 
+            !moveText.match(/^[KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?$/)) {
+          continue;
+        }
+        
         const result = chess.move(moveText, { sloppy: true });
         if (result) {
           positions.push({
@@ -169,53 +141,55 @@ export const parsePgnToPositions = (pgn) => {
         }
       } catch (moveError) {
         console.warn(`Error applying move "${moveText}":`, moveError);
-        // Continue with the next move instead of halting the entire parse
+        // Continue with next move
       }
     }
     
-    // Ensure we have at least one move
+    // If no moves were applied successfully, try one more approach with regex
+    if (positions.length <= 1) {
+      // Reset and try again with a different approach - raw move extraction
+      chess.reset();
+      
+      // Just look for all patterns that look like chess moves
+      const movePattern = /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)\b/g;
+      const rawMoves = [];
+      let match;
+      
+      while ((match = movePattern.exec(cleanedPgn)) !== null) {
+        rawMoves.push(match[1]);
+      }
+      
+      console.log("Raw extracted moves:", rawMoves);
+      
+      // Apply these raw moves
+      positions.length = 0; // Clear positions
+      positions.push({ fen: chess.fen() }); // Add initial position
+      
+      for (const moveText of rawMoves) {
+        try {
+          const result = chess.move(moveText, { sloppy: true });
+          if (result) {
+            positions.push({
+              fen: chess.fen(),
+              move: {
+                san: result.san,
+                uci: result.from + result.to + (result.promotion || '')
+              }
+            });
+          }
+        } catch (e) {
+          // Skip invalid moves
+        }
+      }
+    }
+    
     if (positions.length <= 1) {
       throw new Error('Failed to parse any valid moves');
     }
     
-    console.log("Successfully parsed PGN manually:", positions.length, "positions");
     return { positions, playerInfo };
   } catch (error) {
-    console.error('Alternative PGN parsing method failed:', error);
-    
-    // One final attempt - the simplest approach
-    try {
-      console.log("Making one final attempt with simplest approach");
-      chess.reset();
-      
-      // Remove any header line and just focus on moves
-      const simplePgn = cleanPgn.replace(/^\[.*\].*$/gm, '').trim();
-      
-      // Direct load without any preprocessing
-      if (chess.load_pgn(simplePgn)) {
-        const positions = [];
-        const history = chess.history({ verbose: true });
-        
-        chess.reset();
-        positions.push({ fen: chess.fen() });
-        
-        for (const move of history) {
-          chess.move(move);
-          positions.push({
-            fen: chess.fen(),
-            move: {
-              san: move.san,
-              uci: move.from + move.to + (move.promotion || '')
-            }
-          });
-        }
-        
-        return { positions, playerInfo };
-      }
-      
-      throw new Error('All parsing attempts failed');
-    } catch (finalError) {
-      throw new Error(`Failed to parse PGN: ${error.message}`);
-    }
+    console.error('Manual move extraction failed:', error);
+    throw new Error(`Failed to parse PGN: ${error.message}`);
   }
 };
