@@ -1,4 +1,4 @@
-import { Classification } from '../services/analysisService';
+import { Classification } from './constants';
 
 // Classification types with no special rules
 export const centipawnClassifications = [
@@ -84,31 +84,4 @@ export const getClassificationMessage = (classification, moveSan) => {
  */
 export const shouldShowAlternative = (classification) => {
   return !bestClassifications.includes(classification);
-};
-
-// Helper function to load classification icons
-export const preloadClassificationIcons = async () => {
-  const classificationIconPromises = {};
-  
-  for (const classification of Object.values(Classification)) {
-    classificationIconPromises[classification] = loadIcon(classification);
-  }
-  
-  const icons = {};
-  
-  for (const [classification, promise] of Object.entries(classificationIconPromises)) {
-    icons[classification] = await promise;
-  }
-  
-  return icons;
-};
-
-// Load an icon
-const loadIcon = async (classification) => {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.src = `/static/media/${classification}.png`;
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-  });
 };
