@@ -4,6 +4,7 @@ import { parsePgn, generateReport } from '../services/apiService';
 import { evaluatePositions, generateAnalysisReport } from '../services/analysisService';
 import { parsePgnToPositions } from '../utils/pgnParser';
 import { parseSimplePgn } from '../utils/simplePgnParser';
+import { tryExactMatch } from '../utils/robustPgnParser';
 import { Chess } from 'chess.js';
 import Stockfish from '../services/stockfishService';
 
@@ -35,24 +36,48 @@ const useAnalysis = () => {
    * Most direct method to parse PGN with chess.js
    */
   const parseWithChessJs = (pgn) => {
-    const chess = new Chess();
-    
-    // Try to load PGN directly
     try {
-      if (!chess.loadPgn(pgn, { sloppy: true })) {
+      // Format headers properly
+      const headerRegex = /\[(.*?)\s+"(.*?)"\]/g;
+      let match;
+      let headers = [];
+      
+      // Extract headers
+      while ((match = headerRegex.exec(pgn)) !== null) {
+        headers.push(`[${match[1]} "${match[2]}"]`);
+      }
+      
+      // Format headers with newlines
+      const formattedHeaders = headers.join('\n') + '\n\n';
+      
+      // Extract moves and clean them
+      let movesText = pgn.replace(/\[(.*?)\s+"(.*?)"\]/g, '').trim();
+      movesText = movesText
+        .replace(/\{[^}]*\}/g, '') // Remove comments
+        .replace(/\$\d+/g, '')     // Remove NAGs
+        .replace(/\s+/g, ' ')      // Normalize whitespace
+        .trim();
+      
+      // Create properly formatted PGN
+      const formattedPgn = formattedHeaders + movesText;
+      
+      // Now parse with chess.js
+      const chess = new Chess();
+      
+      if (!chess.loadPgn(formattedPgn, { sloppy: true })) {
         throw new Error('chess.js could not load the PGN');
       }
       
       // Extract player info from headers
-      const headers = chess.header();
+      const headerObj = chess.header();
       const playerInfo = {
         white: {
-          username: headers.White || 'White Player',
-          rating: headers.WhiteElo || '?'
+          username: headerObj.White || 'White Player',
+          rating: headerObj.WhiteElo || '?'
         },
         black: {
-          username: headers.Black || 'Black Player',
-          rating: headers.BlackElo || '?'
+          username: headerObj.Black || 'Black Player',
+          rating: headerObj.BlackElo || '?'
         }
       };
       
@@ -116,30 +141,86 @@ const useAnalysis = () => {
       }
     };
     
+    // Reformat PGN more aggressively
+    const headerLines = [];
+    const headerMatches = pgn.matchAll(/\[(.*?)\s+"(.*?)"\]/g);
+    for (const match of headerMatches) {
+      headerLines.push(`[${match[1]} "${match[2]}"]`);
+    }
+    
+    const formattedHeaders = headerLines.join('\n') + '\n\n';
+    
     // Clean up the PGN aggressively
-    const cleanedPgn = pgn
-      .replace(/\{[^}]*\}/g, '') // Remove all comments
-      .replace(/\([^)]*\)/g, '') // Remove variations
-      .replace(/\$\d+/g, '')     // Remove NAGs
+    let movesText = pgn.replace(/\[(.*?)\s+"(.*?)"\]/g, '').trim();
+    movesText = movesText
+      .replace(/\{[^}]*\}/g, '')      // Remove all comments
+      .replace(/\([^)]*\)/g, '')      // Remove variations
+      .replace(/\$\d+/g, '')          // Remove NAGs
       .replace(/Cannot\s+move/gi, '') // Remove problematic text
       .replace(/Invalid\s+move/gi, '')
       .replace(/Illegal\s+move/gi, '')
-      .replace(/\s+(?:1-0|0-1|1\/2-1\/2|\*)\s*$/, ''); // Remove result
+      .replace(/\s+(?:1-0|0-1|1\/2-1\/2|\*)\s*$/, '') // Remove result
+      .replace(/\s+/g, ' ')           // Normalize whitespace
+      .trim();
     
-    // Extract raw moves using regex
-    const movePattern = /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)\b/g;
-    const possibleMoves = [];
-    let match;
+    const formattedPgn = formattedHeaders + movesText;
     
-    while ((match = movePattern.exec(cleanedPgn)) !== null) {
-      possibleMoves.push(match[1]);
+    // Try with the formatted PGN first
+    try {
+      const chess = new Chess();
+      if (chess.loadPgn(formattedPgn, { sloppy: true })) {
+        const history = chess.history({ verbose: true });
+        chess.reset();
+        
+        const positions = [{ fen: chess.fen() }];
+        for (const move of history) {
+          chess.move(move);
+          positions.push({
+            fen: chess.fen(),
+            move: {
+              san: move.san,
+              uci: move.from + move.to + (move.promotion || '')
+            }
+          });
+        }
+        
+        // If we got at least some moves, return the positions
+        if (positions.length > 1) {
+          return { positions, playerInfo };
+        }
+      }
+    } catch (e) {
+      console.warn("Formatted PGN parsing failed:", e);
     }
     
+    // Extract raw moves using regex if formatted attempt failed
     const chess = new Chess();
     const positions = [{ fen: chess.fen() }];
     
-    // Try to apply each possible move
-    for (const moveText of possibleMoves) {
+    // Try multiple regex patterns to extract as many valid moves as possible
+    const patterns = [
+      // Standard algebraic notation pattern
+      /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?)\b/g,
+      
+      // Numbered moves pattern
+      /\b\d+\.\s+([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?)\s+(?:([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?))?/g,
+    ];
+    
+    const allPotentialMoves = [];
+    
+    // Try all patterns to extract moves
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(movesText)) !== null) {
+        // Extract all capturing groups (different patterns have different group structure)
+        for (let i = 1; i < match.length; i++) {
+          if (match[i]) allPotentialMoves.push(match[i]);
+        }
+      }
+    }
+    
+    // Try to apply each potential move
+    for (const moveText of allPotentialMoves) {
       try {
         const result = chess.move(moveText, { sloppy: true });
         if (result) {
@@ -156,32 +237,35 @@ const useAnalysis = () => {
       }
     }
     
-    // If still no valid moves, create a simple game
-    if (positions.length <= 1) {
-      console.log("Creating simple demo game as fallback");
-      
-      // Reset and create a simple demo game
-      chess.reset();
-      positions.length = 0;
-      positions.push({ fen: chess.fen() });
-      
-      // Standard opening moves
-      const demoMoves = ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6'];
-      
-      for (const move of demoMoves) {
-        try {
-          const result = chess.move(move, { sloppy: true });
-          positions.push({
-            fen: chess.fen(),
-            move: {
-              san: result.san,
-              uci: result.from + result.to + (result.promotion || '')
-            }
-          });
-        } catch (e) {
-          // Skip if any move fails
-          break;
-        }
+    // If we got at least some moves, return the positions
+    if (positions.length > 1) {
+      return { positions, playerInfo };
+    }
+    
+    // If all else fails, create a simple demo game
+    console.log("Creating simple demo game as fallback");
+    
+    // Reset and create a simple demo game
+    chess.reset();
+    positions.length = 0;
+    positions.push({ fen: chess.fen() });
+    
+    // Standard opening moves
+    const demoMoves = ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6', 'd3', 'd6', 'Nc3', 'Bg4'];
+    
+    for (const move of demoMoves) {
+      try {
+        const result = chess.move(move, { sloppy: true });
+        positions.push({
+          fen: chess.fen(),
+          move: {
+            san: result.san,
+            uci: result.from + result.to + (result.promotion || '')
+          }
+        });
+      } catch (e) {
+        // Skip if any move fails
+        break;
       }
     }
     
@@ -366,17 +450,11 @@ const useAnalysis = () => {
       let parsedPositions = null;
       let errorMessage = '';
       
-      // Method 1: Simplest direct approach with chess.js
+      // First try with our most robust parser
       try {
-        positions = parseWithChessJs(pgn);
-        console.log("Parsed positions directly with chess.js:", positions.length);
-      } catch (directError) {
-        errorMessage += `Direct parsing: ${directError.message}. `;
-        console.warn("Direct chess.js parsing failed, trying simple parser...");
+        parsedPositions = tryExactMatch(pgn);
         
-        // Method 2: Simple dedicated parser
-        try {
-          parsedPositions = parseSimplePgn(pgn);
+        if (parsedPositions && parsedPositions.positions.length > 1) {
           positions = parsedPositions.positions;
           
           // Update player info
@@ -388,14 +466,24 @@ const useAnalysis = () => {
             }
           });
           
-          console.log("Parsed with simple parser:", positions.length);
-        } catch (simpleError) {
-          errorMessage += `Simple parser: ${simpleError.message}. `;
-          console.warn("Simple parser failed, trying advanced parser...");
+          console.log("Parsed with robust parser:", positions.length);
+        }
+      } catch (robustError) {
+        errorMessage += `Robust parser: ${robustError.message}. `;
+        console.warn("Robust parser failed, trying standard methods...");
+      }
+      
+      // If robust parser didn't work, try standard methods
+      if (!positions) {
+        try {
+          positions = parseWithChessJs(pgn);
+          console.log("Parsed positions directly with chess.js:", positions.length);
+        } catch (directError) {
+          errorMessage += `Direct parsing: ${directError.message}. `;
+          console.warn("Direct chess.js parsing failed, trying simple parser...");
           
-          // Method 3: Advanced complex parser
           try {
-            parsedPositions = parsePgnToPositions(pgn);
+            parsedPositions = parseSimplePgn(pgn);
             positions = parsedPositions.positions;
             
             // Update player info
@@ -407,14 +495,13 @@ const useAnalysis = () => {
               }
             });
             
-            console.log("Parsed with advanced parser:", positions.length);
-          } catch (advancedError) {
-            errorMessage += `Advanced parser: ${advancedError.message}.`;
-            console.warn("All standard parsers failed, trying emergency parser...");
+            console.log("Parsed with simple parser:", positions.length);
+          } catch (simpleError) {
+            errorMessage += `Simple parser: ${simpleError.message}. `;
+            console.warn("Simple parser failed, trying advanced parser...");
             
-            // Method 4: Emergency fallback parser
             try {
-              parsedPositions = emergencyParsePgn(pgn);
+              parsedPositions = parsePgnToPositions(pgn);
               positions = parsedPositions.positions;
               
               // Update player info
@@ -426,10 +513,29 @@ const useAnalysis = () => {
                 }
               });
               
-              console.log("Parsed with emergency parser:", positions.length);
-            } catch (emergencyError) {
-              errorMessage += ` Emergency parser: ${emergencyError.message}.`;
-              throw new Error(`All parsing methods failed. ${errorMessage}`);
+              console.log("Parsed with advanced parser:", positions.length);
+            } catch (advancedError) {
+              errorMessage += `Advanced parser: ${advancedError.message}.`;
+              console.warn("All standard parsers failed, trying emergency parser...");
+              
+              try {
+                parsedPositions = emergencyParsePgn(pgn);
+                positions = parsedPositions.positions;
+                
+                // Update player info
+                dispatch({ 
+                  type: 'SET_PLAYERS', 
+                  payload: {
+                    whitePlayer: parsedPositions.playerInfo.white,
+                    blackPlayer: parsedPositions.playerInfo.black
+                  }
+                });
+                
+                console.log("Parsed with emergency parser:", positions.length);
+              } catch (emergencyError) {
+                errorMessage += ` Emergency parser: ${emergencyError.message}.`;
+                throw new Error(`All parsing methods failed. ${errorMessage}`);
+              }
             }
           }
         }
