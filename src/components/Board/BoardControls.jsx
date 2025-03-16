@@ -31,10 +31,11 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
   };
   
   return (
-    <div className="w-full flex flex-col sm:flex-row justify-between gap-2">
+    // Removed any bottom padding/margin that could cause extra space
+    <div className="w-full flex flex-col sm:flex-row justify-between gap-1.5">
       <div className="flex justify-center sm:justify-start">
         <button 
-          className="btn-secondary rounded-l-md rounded-r-none px-3 py-2 border-r border-secondary-600"
+          className="btn-secondary rounded-l-md rounded-r-none px-3 py-1.5 border-r border-secondary-600"
           onClick={flipBoard}
           title="Flip Board"
         >
@@ -42,7 +43,7 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
         </button>
         
         <button 
-          className="btn-secondary px-3 py-2 border-r border-secondary-600"
+          className="btn-secondary px-3 py-1.5 border-r border-secondary-600"
           onClick={goToStart}
           title="Back to Start"
         >
@@ -50,7 +51,7 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
         </button>
         
         <button 
-          className="btn-secondary px-3 py-2 border-r border-secondary-600"
+          className="btn-secondary px-3 py-1.5 border-r border-secondary-600"
           onClick={prevMove}
           title="Previous Move"
         >
@@ -58,7 +59,7 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
         </button>
         
         <button 
-          className="btn-secondary px-3 py-2 border-r border-secondary-600"
+          className="btn-secondary px-3 py-1.5 border-r border-secondary-600"
           onClick={nextMove}
           title="Next Move"
         >
@@ -66,7 +67,7 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
         </button>
         
         <button 
-          className="btn-secondary px-3 py-2 border-r border-secondary-600"
+          className="btn-secondary px-3 py-1.5 border-r border-secondary-600"
           onClick={goToEnd}
           title="Go to End"
         >
@@ -74,7 +75,7 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
         </button>
         
         <button 
-          className={`btn-secondary rounded-r-md rounded-l-none px-3 py-2 ${!reportResults ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary-600'}`}
+          className={`btn-secondary rounded-r-md rounded-l-none px-3 py-1.5 ${!reportResults ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary-600'}`}
           onClick={handleSaveAnalysis}
           title="Save Analysis"
           disabled={!reportResults}
@@ -83,7 +84,8 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
         </button>
       </div>
       
-      <div className="flex items-center justify-center sm:justify-end mt-2 sm:mt-0">
+      {/* Removed mt-2 class to reduce space on mobile */}
+      <div className="flex items-center justify-center sm:justify-end sm:ml-2">
         <button
           className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded transition-colors ${
             showSuggestionArrows 

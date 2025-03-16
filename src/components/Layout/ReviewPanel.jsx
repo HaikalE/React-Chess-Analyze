@@ -48,7 +48,9 @@ const ReviewPanel = () => {
   };
   
   return (
-    <div className="card w-full lg:w-96 flex flex-col h-full gap-4 max-h-screen lg:max-h-[90vh] overflow-hidden">
+    // Completely removed flex-1 and max-h-screen attributes
+    // Changed to auto-height (h-auto) instead of flex column with stretching
+    <div className="card w-full lg:w-96 flex flex-col h-auto gap-2">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <FontAwesomeIcon icon={faChessKnight} className="text-primary-400" />
@@ -65,24 +67,28 @@ const ReviewPanel = () => {
         )}
       </div>
       
-      <AnalysisForm 
-        onShowGameSelect={handleShowGameSelect} 
-        pgnText={pgnText}
-        setPgnText={setPgnText}
-        onDepthChange={handleDepthChange} // Pass the depth change handler
-      />
+      <div className="flex-shrink-0">
+        <AnalysisForm 
+          onShowGameSelect={handleShowGameSelect} 
+          pgnText={pgnText}
+          setPgnText={setPgnText}
+          onDepthChange={handleDepthChange} 
+        />
+      </div>
       
       {reportResults ? (
-        <div className="overflow-y-auto flex-1 flex flex-col gap-4 pr-1 pb-2">
+        // Removed max-height and overflow constraints
+        // Changed to a standard div without scrolling behavior
+        <div className="flex flex-col gap-2 pt-1">
           <AccuracyStats />
           <ClassificationDisplay />
           <EngineSuggestions />
           <EvaluationGraph />
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 text-secondary-400">
-          <FontAwesomeIcon icon={faLightbulb} className="text-4xl mb-3 text-secondary-600" />
-          <h3 className="text-lg font-medium mb-2">No Analysis Yet</h3>
+        <div className="flex flex-col items-center justify-center text-center p-2 text-secondary-400">
+          <FontAwesomeIcon icon={faLightbulb} className="text-3xl mb-2 text-secondary-600" />
+          <h3 className="text-lg font-medium mb-1">No Analysis Yet</h3>
           <p className="text-sm">
             Enter a PGN above or import a game from Chess.com or Lichess to analyze your chess game.
           </p>

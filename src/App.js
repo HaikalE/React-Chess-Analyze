@@ -11,10 +11,12 @@ import './index.css';
 function App() {
   return (
     <GameProvider>
-      <div className="min-h-screen flex flex-col">
+      {/* Remove min-h-screen to prevent excessive stretching */}
+      <div className="flex flex-col">
         <Header />
         
-        <main className="flex-1 flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 p-4 md:p-6 max-w-7xl mx-auto w-full">
+        {/* Removed flex-1 to prevent the main content from stretching unnecessarily */}
+        <main className="flex flex-col lg:flex-row items-start justify-center gap-3 p-2 md:p-4 max-w-7xl mx-auto w-full">
           <Board />
           <ReviewPanel />
         </main>

@@ -16,7 +16,6 @@ import {
   faCircleExclamation
 } from '@fortawesome/free-solid-svg-icons';
 
-// Add depth to the props being passed to parent
 const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) => {
   const { 
     isAnalysisRunning, 
@@ -30,7 +29,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
   
   const [loadType, setLoadType] = useState('pgn');
   const [username, setUsername] = useState('');
-  const [depth, setDepth] = useState(20); // Changed default to 20
+  const [depth, setDepth] = useState(20);
   const [showArrows, setShowArrows] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
@@ -124,7 +123,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
     localStorage.setItem(`chess-site-username-saved-${loadType}`, username);
     
     // Show game selection modal
-    onShowGameSelect(loadType, username, depth); // Pass depth to parent
+    onShowGameSelect(loadType, username, depth);
   };
 
   // Generate progress stage description
@@ -143,7 +142,8 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
   };
   
   return (
-    <div className="flex flex-col gap-3">
+    // Changed gap-3 to gap-2 for more compact mobile layout
+    <div className="flex flex-col gap-2">
       {/* Source selection */}
       <div className="flex gap-1">
         <select 
@@ -178,13 +178,13 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
         </div>
       </div>
       
-      {/* PGN or JSON input */}
+      {/* PGN or JSON input - reduced min-height for mobile */}
       {(loadType === 'pgn' || loadType === 'json') ? (
         <textarea
           value={pgnText}
           onChange={(e) => setPgnText(e.target.value)}
           placeholder={loadType === 'pgn' ? 'Enter PGN...' : 'Enter JSON...'}
-          className="w-full bg-secondary-800 text-white placeholder-secondary-400 border border-secondary-600 rounded-md p-3 text-sm min-h-[100px] focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+          className="w-full bg-secondary-800 text-white placeholder-secondary-400 border border-secondary-600 rounded-md p-2 sm:p-3 text-sm min-h-[80px] sm:min-h-[100px] focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
           disabled={isAnalysisRunning}
         />
       ) : (
@@ -206,9 +206,9 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
         </div>
       )}
       
-      {/* Action buttons */}
+      {/* Action buttons - more compact */}
       <button 
-        className="btn-accent flex items-center justify-center gap-2 py-2 px-4 rounded-md bg-accent-600 hover:bg-accent-700 text-white font-medium transition-colors duration-200 ${isAnalysisRunning ? 'opacity-70 cursor-not-allowed' : ''}"
+        className="btn-accent flex items-center justify-center gap-2 py-1.5 sm:py-2 px-4 rounded-md bg-accent-600 hover:bg-accent-700 text-white font-medium transition-colors duration-200 ${isAnalysisRunning ? 'opacity-70 cursor-not-allowed' : ''}"
         onClick={handleAnalysisStart}
         disabled={isAnalysisRunning}
       >
@@ -220,15 +220,15 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
         <span className="font-semibold">Analyze Game</span>
       </button>
       
-      {/* Enhanced progress indicator */}
+      {/* Enhanced progress indicator - reduced padding on mobile */}
       {isAnalysisRunning && (
-        <div className="mt-2 flex flex-col items-center p-3 bg-secondary-800 rounded-lg border border-secondary-700">
-          <div className="flex items-center justify-center gap-3 w-full mb-3">
+        <div className="mt-1 flex flex-col items-center p-2 sm:p-3 bg-secondary-800 rounded-lg border border-secondary-700">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 w-full mb-2 sm:mb-3">
             <FontAwesomeIcon icon={faChessKnight} className="text-primary-400 animate-bounce" />
             <div className="text-sm font-medium text-primary-300">{analysisStatus || "Processing..."}</div>
           </div>
           
-          <div className="w-full bg-secondary-700 rounded-full overflow-hidden h-2 mb-2">
+          <div className="w-full bg-secondary-700 rounded-full overflow-hidden h-2 mb-1 sm:mb-2">
             <div 
               className="bg-accent-500 h-full transition-all duration-500"
               style={{ width: `${analysisProgress}%` }}
@@ -239,33 +239,33 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
             {getStageDescription()}
           </div>
           
-          <div className="text-xs text-secondary-500 mt-2 text-center">
+          <div className="text-xs text-secondary-500 mt-1 sm:mt-2 text-center">
             Analysis at depth {depth} takes approximately {depth <= 14 ? "1-2" : depth <= 16 ? "2-3" : depth <= 18 ? "3-5" : "5-8"} minutes for a full game
           </div>
         </div>
       )}
       
-      {/* Status message (when not analyzing) */}
+      {/* Status message - more compact on mobile */}
       {!isAnalysisRunning && (analysisStatus || statusMessage) && !error && (
-        <div className="text-sm py-2 px-3 rounded bg-secondary-700 text-secondary-300">
+        <div className="text-sm py-1.5 sm:py-2 px-3 rounded bg-secondary-700 text-secondary-300">
           <FontAwesomeIcon icon={faCircleInfo} className="mr-1.5" />
           {analysisStatus || statusMessage}
         </div>
       )}
       
-      {/* Error message with guidance */}
+      {/* Error message with guidance - more compact */}
       {error && !isAnalysisRunning && (
-        <div className="bg-error-500/20 text-error-500 p-3 rounded-lg border border-error-500/50 mt-2">
+        <div className="bg-error-500/20 text-error-500 p-2 sm:p-3 rounded-lg border border-error-500/50 mt-1">
           <div className="flex items-center gap-2 font-medium mb-1">
             <FontAwesomeIcon icon={faCircleExclamation} />
             <span>Error parsing your PGN</span>
           </div>
-          <div className="text-sm mb-2">
+          <div className="text-sm mb-1 sm:mb-2">
             {error}
           </div>
           <div className="text-xs text-error-400">
             <p className="font-medium">Try these solutions:</p>
-            <ul className="list-disc pl-4 mt-1 space-y-1">
+            <ul className="list-disc pl-4 mt-1 space-y-0.5 sm:space-y-1">
               <li>Check if your PGN format is valid</li>
               <li>Remove any special annotations or comments</li>
               <li>Try copying a fresh PGN from Chess.com or Lichess</li>
@@ -277,7 +277,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
       
       {/* Captcha placeholder */}
       {showCaptcha && !isAnalysisRunning && (
-        <div className="flex justify-center mt-1">
+        <div className="flex justify-center mt-0.5 sm:mt-1">
           <button 
             className="btn-primary text-sm flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-md animate-pulse"
             onClick={() => handleCaptchaSubmit('demo-token')}

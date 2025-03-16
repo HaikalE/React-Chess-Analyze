@@ -26,16 +26,16 @@ const Board = () => {
   const topPlayerProfile = boardFlipped ? whitePlayer : blackPlayer;
 
   return (
-    <div className="card flex flex-col items-center">
+    // Added h-auto to prevent vertical stretching
+    <div className="card h-auto flex flex-col items-center p-2">
       <div className="flex w-full max-w-xl">
-        {/* The key change is setting a fixed height here that matches the board */}
-        <div className="flex" style={{ height: `${BOARD_SIZE + 72}px` }}> {/* 72px accounts for player bars */}
+        <div className="flex"> 
           <EvaluationBar />
         </div>
         
         <div className="flex-1 flex flex-col">
           {/* Top player */}
-          <div className="py-2 px-3 bg-secondary-700 rounded-t-md flex justify-between items-center h-[36px]">
+          <div className="py-1.5 px-3 bg-secondary-700 rounded-t-md flex justify-between items-center h-[36px]">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-secondary-400"></div>
               <span className="text-sm sm:text-base font-medium text-secondary-100">{topPlayerProfile.username}</span>
@@ -76,7 +76,7 @@ const Board = () => {
           </div>
           
           {/* Bottom player */}
-          <div className="py-2 px-3 bg-secondary-700 rounded-b-md flex justify-between items-center h-[36px]">
+          <div className="py-1.5 px-3 bg-secondary-700 rounded-b-md flex justify-between items-center h-[36px]">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-white"></div>
               <span className="text-sm sm:text-base font-medium text-secondary-100">{bottomPlayerProfile.username}</span>
@@ -86,8 +86,8 @@ const Board = () => {
             </span>
           </div>
           
-          {/* Board controls - now inside the flex column with the chess board */}
-          <div className="mt-3">
+          {/* Board controls with minimal margin */}
+          <div className="mt-1 mb-0">
             <BoardControls 
               showSuggestionArrows={showSuggestionArrows} 
               setShowSuggestionArrows={setShowSuggestionArrows} 
