@@ -19,11 +19,14 @@ const classificationIcons = {};
 const useChessboard = (showSuggestionArrows = false) => {
   const { 
     currentPosition, 
+    displayPosition, // Use the displayPosition which may be from an engine line
     positions, 
     reportResults, 
     currentMoveIndex, 
     boardFlipped,
-    traverseMoves 
+    traverseMoves,
+    isViewingEngineLine,
+    activeEngineLine
   } = useGameContext();
   
   const canvasRef = useRef(null);
@@ -92,7 +95,9 @@ const useChessboard = (showSuggestionArrows = false) => {
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
     
-    const fen = currentPosition?.fen || startingPositionFen;
+    // Use displayPosition (which might be from an engine line) instead of currentPosition
+    const positionToShow = displayPosition || currentPosition;
+    const fen = positionToShow?.fen || startingPositionFen;
     
     // Draw surface of board
     const colors = ["#f6dfc0", "#b88767"];
@@ -119,38 +124,85 @@ const useChessboard = (showSuggestionArrows = false) => {
       ctx.fillText(boardFlipped ? (y + 1).toString() : (8 - y).toString(), 5, y * squareSize + 24);
     }
     
-    // Draw last move highlight
-    const lastMove = reportResults?.positions[currentMoveIndex];
-    
-    const lastMoveCoordinates = {
-      from: { x: 0, y: 0 },
-      to: { x: 0, y: 0 }
-    };
-    
-    if (currentMoveIndex > 0 && lastMove?.move?.uci) {
-      const lastMoveUCI = lastMove.move.uci;
+    // Only draw last move highlight for real game moves (not engine lines)
+    if (!isViewingEngineLine) {
+      const lastMove = reportResults?.positions[currentMoveIndex];
       
-      lastMoveCoordinates.from = getBoardCoordinates(lastMoveUCI.slice(0, 2), boardFlipped);
-      lastMoveCoordinates.to = getBoardCoordinates(lastMoveUCI.slice(2, 4), boardFlipped);
+      const lastMoveCoordinates = {
+        from: { x: 0, y: 0 },
+        to: { x: 0, y: 0 }
+      };
       
-      const classification = lastMove.classification || "book";
-      const highlightColor = classificationColors[classification];
+      if (currentMoveIndex > 0 && lastMove?.move?.uci) {
+        const lastMoveUCI = lastMove.move.uci;
+        
+        lastMoveCoordinates.from = getBoardCoordinates(lastMoveUCI.slice(0, 2), boardFlipped);
+        lastMoveCoordinates.to = getBoardCoordinates(lastMoveUCI.slice(2, 4), boardFlipped);
+        
+        const classification = lastMove.classification || "book";
+        const highlightColor = classificationColors[classification];
+        
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = highlightColor;
+        
+        // Highlight from square
+        ctx.fillRect(
+          lastMoveCoordinates.from.x * squareSize, 
+          lastMoveCoordinates.from.y * squareSize, 
+          squareSize,
+          squareSize
+        );
+        
+        // Highlight to square
+        ctx.fillRect(
+          lastMoveCoordinates.to.x * squareSize, 
+          lastMoveCoordinates.to.y * squareSize, 
+          squareSize,
+          squareSize
+        );
+        
+        ctx.globalAlpha = 1;
+      }
       
+      // Draw last move classification icon (only for real game moves)
+      if (currentMoveIndex > 0 && reportResults) {
+        const classification = reportResults.positions[currentMoveIndex]?.classification;
+        
+        if (classification && classificationIcons[classification]) {
+          ctx.drawImage(
+            classificationIcons[classification],
+            lastMoveCoordinates.to.x * squareSize + ((68 / 90) * squareSize), 
+            lastMoveCoordinates.to.y * squareSize - ((10 / 90) * squareSize), 
+            56, 56
+          );
+        }
+      }
+    } 
+    // For engine lines, highlight the suggested move
+    else if (activeEngineLine && activeEngineLine.moveUCI) {
+      const moveUCI = activeEngineLine.moveUCI;
+      
+      const engineMoveCoordinates = {
+        from: getBoardCoordinates(moveUCI.slice(0, 2), boardFlipped),
+        to: getBoardCoordinates(moveUCI.slice(2, 4), boardFlipped)
+      };
+      
+      // Use a specific highlight color for engine suggestions
       ctx.globalAlpha = 0.7;
-      ctx.fillStyle = highlightColor;
+      ctx.fillStyle = "#0ea5e9"; // primary-500
       
       // Highlight from square
       ctx.fillRect(
-        lastMoveCoordinates.from.x * squareSize, 
-        lastMoveCoordinates.from.y * squareSize, 
+        engineMoveCoordinates.from.x * squareSize, 
+        engineMoveCoordinates.from.y * squareSize, 
         squareSize,
         squareSize
       );
       
       // Highlight to square
       ctx.fillRect(
-        lastMoveCoordinates.to.x * squareSize, 
-        lastMoveCoordinates.to.y * squareSize, 
+        engineMoveCoordinates.to.x * squareSize, 
+        engineMoveCoordinates.to.y * squareSize, 
         squareSize,
         squareSize
       );
@@ -181,22 +233,8 @@ const useChessboard = (showSuggestionArrows = false) => {
       }
     }
     
-    // Draw last move classification icon
-    if (currentMoveIndex > 0 && reportResults) {
-      const classification = reportResults.positions[currentMoveIndex]?.classification;
-      
-      if (classification && classificationIcons[classification]) {
-        ctx.drawImage(
-          classificationIcons[classification],
-          lastMoveCoordinates.to.x * squareSize + ((68 / 90) * squareSize), 
-          lastMoveCoordinates.to.y * squareSize - ((10 / 90) * squareSize), 
-          56, 56
-        );
-      }
-    }
-    
-    // Draw engine suggestion arrows
-    if (showSuggestionArrows && currentPosition?.topLines) {
+    // Draw engine suggestion arrows only if not viewing an engine line already
+    if (!isViewingEngineLine && showSuggestionArrows && currentPosition?.topLines) {
       const arrowAttributes = [
         { width: 35, opacity: 0.8 },
         { width: 21, opacity: 0.55 }
@@ -225,12 +263,15 @@ const useChessboard = (showSuggestionArrows = false) => {
       });
     }
   }, [
+    displayPosition,
     currentPosition, 
     reportResults, 
     currentMoveIndex, 
     boardFlipped, 
     imagesLoaded,
-    showSuggestionArrows
+    showSuggestionArrows,
+    isViewingEngineLine,
+    activeEngineLine
   ]);
   
   /**

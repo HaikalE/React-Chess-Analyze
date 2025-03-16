@@ -150,7 +150,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
           id="load-type-dropdown"
           value={loadType}
           onChange={handleLoadTypeChange}
-          className="input bg-secondary-700 text-sm flex-grow rounded-r-none"
+          className="bg-secondary-700 text-sm text-white flex-grow rounded-r-none p-2 border border-secondary-600 focus:outline-none focus:ring-1 focus:ring-primary-500"
           disabled={isAnalysisRunning}
         >
           <option value="pgn">PGN</option>
@@ -164,7 +164,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
           <select
             value={depth}
             onChange={(e) => setDepth(parseInt(e.target.value))}
-            className="input bg-secondary-700 text-sm rounded-l-none font-mono"
+            className="bg-secondary-700 text-white text-sm rounded-l-none font-mono p-2 border border-secondary-600 focus:outline-none focus:ring-1 focus:ring-primary-500"
             disabled={isAnalysisRunning}
           >
             <option value="14">14 {/* Fast */}</option>
@@ -184,7 +184,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
           value={pgnText}
           onChange={(e) => setPgnText(e.target.value)}
           placeholder={loadType === 'pgn' ? 'Enter PGN...' : 'Enter JSON...'}
-          className="input text-sm min-h-[100px]"
+          className="w-full bg-secondary-800 text-white placeholder-secondary-400 border border-secondary-600 rounded-md p-3 text-sm min-h-[100px] focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
           disabled={isAnalysisRunning}
         />
       ) : (
@@ -193,7 +193,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Username..."
-            className="input text-sm flex-grow rounded-r-none"
+            className="w-full bg-secondary-800 text-white placeholder-secondary-400 border border-secondary-600 border-r-0 rounded-l-md p-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
             disabled={isAnalysisRunning}
           />
           <button 
@@ -208,7 +208,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
       
       {/* Action buttons */}
       <button 
-        className={`btn-accent flex items-center justify-center gap-2 ${isAnalysisRunning ? 'opacity-70 cursor-not-allowed' : ''}`}
+        className="btn-accent flex items-center justify-center gap-2 py-2 px-4 rounded-md bg-accent-600 hover:bg-accent-700 text-white font-medium transition-colors duration-200 ${isAnalysisRunning ? 'opacity-70 cursor-not-allowed' : ''}"
         onClick={handleAnalysisStart}
         disabled={isAnalysisRunning}
       >
@@ -279,7 +279,7 @@ const AnalysisForm = ({ onShowGameSelect, pgnText, setPgnText, onDepthChange }) 
       {showCaptcha && !isAnalysisRunning && (
         <div className="flex justify-center mt-1">
           <button 
-            className="btn-primary text-sm flex items-center gap-2 animate-pulse"
+            className="btn-primary text-sm flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-md animate-pulse"
             onClick={() => handleCaptchaSubmit('demo-token')}
           >
             <FontAwesomeIcon icon={faChessPawn} />

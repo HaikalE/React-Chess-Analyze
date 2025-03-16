@@ -17,7 +17,8 @@ const useAnalysis = () => {
     evaluatedPositions,
     reportResults,
     whitePlayer, 
-    blackPlayer
+    blackPlayer,
+    showEngineMoves
   } = useGameContext();
   
   const [error, setError] = useState(null);
@@ -64,6 +65,7 @@ const useAnalysis = () => {
       // Generate positions array
       const positions = [{ fen: chess.fen() }];
       
+      // Apply each move and record positions
       for (const move of history) {
         chess.move(move);
         positions.push({
@@ -227,6 +229,73 @@ const useAnalysis = () => {
           const engine = new Stockfish();
           const lines = await engine.evaluate(position.fen, depth);
           
+          // Generate future moves for each suggested line
+          for (const line of lines) {
+            if (!line.moveUCI) continue;
+            
+            try {
+              const chess = new Chess(position.fen);
+              const futureMoves = [];
+              
+              // Make the initial move
+              const from = line.moveUCI.slice(0, 2);
+              const to = line.moveUCI.slice(2, 4);
+              const promotion = line.moveUCI.slice(4) || undefined;
+              
+              chess.move({ from, to, promotion });
+              
+              // Find the best moves for the next few positions
+              for (let i = 0; i < 4; i++) {
+                if (chess.isGameOver()) break;
+                
+                const possibleMoves = chess.moves({ verbose: true });
+                if (possibleMoves.length === 0) break;
+                
+                // Score moves based on simple heuristics
+                const scoredMoves = possibleMoves.map(move => {
+                  let score = 0;
+                  
+                  // Center control
+                  if ((move.to.includes('d') || move.to.includes('e')) && 
+                      (move.to.includes('4') || move.to.includes('5'))) {
+                    score += 3;
+                  }
+                  
+                  // Development priority
+                  if (move.piece !== 'p' && ['a1','b1','c1','f1','g1','h1','a8','b8','c8','f8','g8','h8'].includes(move.from)) {
+                    score += 2;
+                  }
+                  
+                  // Capture priority
+                  if (move.flags.includes('c')) {
+                    score += 5;
+                  }
+                  
+                  // Check priority
+                  if (move.flags.includes('ch')) {
+                    score += 4;
+                  }
+                  
+                  return { move, score };
+                });
+                
+                // Sort by score and take best move
+                scoredMoves.sort((a, b) => b.score - a.score);
+                const bestMove = scoredMoves[0].move;
+                
+                // Apply move
+                chess.move(bestMove);
+                futureMoves.push(bestMove.san);
+              }
+              
+              // Add future moves to the line
+              line.futureMoves = futureMoves;
+            } catch (error) {
+              console.warn("Could not calculate future moves for line:", error);
+              line.futureMoves = [];
+            }
+          }
+          
           evaluatedPositions[index] = {
             ...position,
             topLines: lines,
@@ -246,13 +315,15 @@ const useAnalysis = () => {
                   id: 1,
                   depth: depth / 2, // Reduce depth for fallback
                   moveUCI: position.move?.uci || "e2e4",
-                  evaluation: { type: "cp", value: 0 }
+                  evaluation: { type: "cp", value: 0 },
+                  futureMoves: ["e7e5", "Ng1f3", "Nb8c6", "Bf1c4"]
                 },
                 {
                   id: 2,
                   depth: depth / 2,
                   moveUCI: "d2d4",
-                  evaluation: { type: "cp", value: -10 }
+                  evaluation: { type: "cp", value: -10 },
+                  futureMoves: ["d7d5", "Ng1f3", "Nb8c6", "e2e3"]
                 }
               ],
               worker: "fallback"
@@ -388,6 +459,12 @@ const useAnalysis = () => {
       
       // Generate report client-side
       const report = generateAnalysisReport(evaluated);
+      
+      // Add settings for engine moves visibility
+      report.settings = {
+        showEngineMoves: showEngineMoves
+      };
+      
       dispatch({ type: 'SET_REPORT_RESULTS', payload: report });
       dispatch({ type: 'SET_CURRENT_MOVE_INDEX', payload: 0 });
       
@@ -403,7 +480,7 @@ const useAnalysis = () => {
       dispatch({ type: 'SET_ANALYSIS_STATUS', payload: 'Error: ' + error.message });
       throw error;
     }
-  }, [dispatch, isAnalysisRunning, resetAnalysis]);
+  }, [dispatch, isAnalysisRunning, resetAnalysis, showEngineMoves]);
   
   /**
    * Generate a final report from evaluated positions
@@ -423,6 +500,12 @@ const useAnalysis = () => {
       
       // Generate client-side report
       const report = generateAnalysisReport(evaluatedPositions);
+      
+      // Add settings for engine moves visibility
+      report.settings = {
+        showEngineMoves: showEngineMoves
+      };
+      
       dispatch({ type: 'SET_REPORT_RESULTS', payload: report });
       dispatch({ type: 'SET_CURRENT_MOVE_INDEX', payload: 0 });
       dispatch({ type: 'SET_ANALYSIS_STATUS', payload: '' });
@@ -435,7 +518,7 @@ const useAnalysis = () => {
     } finally {
       dispatch({ type: 'SET_ANALYSIS_RUNNING', payload: false });
     }
-  }, [dispatch, evaluatedPositions]);
+  }, [dispatch, evaluatedPositions, showEngineMoves]);
   
   /**
    * Load saved analysis JSON
@@ -443,7 +526,7 @@ const useAnalysis = () => {
    */
   const loadSavedAnalysis = useCallback((analysisJson) => {
     try {
-      const { players, results } = analysisJson;
+      const { players, results, settings } = analysisJson;
       
       if (!players || !results) {
         throw new Error('Invalid analysis file');
@@ -453,6 +536,14 @@ const useAnalysis = () => {
         whitePlayer: players.white,
         blackPlayer: players.black
       }});
+      
+      // Load engine moves visibility setting if available
+      if (settings && settings.showEngineMoves !== undefined) {
+        dispatch({ 
+          type: 'SET_ENGINE_MOVES_VISIBILITY', 
+          payload: settings.showEngineMoves 
+        });
+      }
       
       dispatch({ type: 'SET_POSITIONS', payload: results.positions });
       dispatch({ type: 'SET_REPORT_RESULTS', payload: results });
@@ -479,7 +570,10 @@ const useAnalysis = () => {
         white: whitePlayer,
         black: blackPlayer
       },
-      results: reportResults
+      results: reportResults,
+      settings: {
+        showEngineMoves: showEngineMoves
+      }
     };
     
     const blob = new Blob([JSON.stringify(savedAnalysis)], {"type": "application/json"});
@@ -489,7 +583,7 @@ const useAnalysis = () => {
     window.open(url);
     
     return savedAnalysis;
-  }, [reportResults, whitePlayer, blackPlayer]);
+  }, [reportResults, whitePlayer, blackPlayer, showEngineMoves]);
   
   return {
     analyzePgn,

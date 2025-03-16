@@ -1,5 +1,6 @@
 import React from 'react';
 import { useGameContext } from '../../contexts/GameContext';
+import useAnalysis from '../../hooks/useAnalysis';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faRepeat, 
@@ -11,14 +12,23 @@ import {
   faLightbulb
 } from '@fortawesome/free-solid-svg-icons';
 
-const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }) => {
+const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
   const { 
     goToStart, 
     prevMove, 
     nextMove, 
     goToEnd, 
-    flipBoard 
+    flipBoard,
+    reportResults
   } = useGameContext();
+  
+  const { saveAnalysis } = useAnalysis();
+  
+  const handleSaveAnalysis = () => {
+    if (saveAnalysis && reportResults) {
+      saveAnalysis();
+    }
+  };
   
   return (
     <div className="w-full flex flex-col sm:flex-row justify-between gap-2">
@@ -64,11 +74,12 @@ const BoardControls = ({ onSave, showSuggestionArrows, setShowSuggestionArrows }
         </button>
         
         <button 
-          className="btn-secondary rounded-r-md rounded-l-none px-3 py-2"
-          onClick={onSave}
+          className={`btn-secondary rounded-r-md rounded-l-none px-3 py-2 ${!reportResults ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary-600'}`}
+          onClick={handleSaveAnalysis}
           title="Save Analysis"
+          disabled={!reportResults}
         >
-          <FontAwesomeIcon icon={faFloppyDisk} className="text-secondary-200" />
+          <FontAwesomeIcon icon={faFloppyDisk} className={`${reportResults ? 'text-primary-300' : 'text-secondary-400'}`} />
         </button>
       </div>
       

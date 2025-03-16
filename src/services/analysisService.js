@@ -155,6 +155,82 @@ export const generateAnalysisReport = (positions) => {
     }
   }
   
+  // Process engine lines to include future moves data
+  for (let position of positions) {
+    if (!position.topLines) continue;
+    
+    // Add potential future moves to engine lines
+    position.topLines.forEach(line => {
+      if (!line || !line.moveUCI) return;
+      
+      try {
+        // Setup a chess instance with the current position
+        const chess = new Chess(position.fen);
+        
+        // Make the initial engine suggestion move
+        const from = line.moveUCI.slice(0, 2);
+        const to = line.moveUCI.slice(2, 4);
+        const promotion = line.moveUCI.slice(4) || undefined;
+        
+        chess.move({ from, to, promotion });
+        
+        // Calculate potential next 4 moves (simplified approach)
+        const futureMoves = [];
+        
+        // Make 4 moves based on simple heuristics - this is a very simplified approach
+        // In a real implementation, you'd use the engine to calculate the line
+        for (let i = 0; i < 4; i++) {
+          if (chess.isGameOver()) break;
+          
+          const possibleMoves = chess.moves({ verbose: true });
+          if (possibleMoves.length === 0) break;
+          
+          // Simple heuristic: prefer center control, development, and captures
+          const scoredMoves = possibleMoves.map(move => {
+            let score = 0;
+            
+            // Center control
+            if ((move.to.includes('d') || move.to.includes('e')) && 
+                (move.to.includes('4') || move.to.includes('5'))) {
+              score += 3;
+            }
+            
+            // Development priority
+            if (move.piece !== 'p' && ['a1','b1','c1','f1','g1','h1','a8','b8','c8','f8','g8','h8'].includes(move.from)) {
+              score += 2;
+            }
+            
+            // Capture priority
+            if (move.flags.includes('c')) {
+              score += 5;
+            }
+            
+            // Check priority
+            if (move.flags.includes('c')) {
+              score += 4;
+            }
+            
+            return { move, score };
+          });
+          
+          // Sort by score and take best move
+          scoredMoves.sort((a, b) => b.score - a.score);
+          const bestMove = scoredMoves[0].move;
+          
+          // Apply the move
+          chess.move(bestMove);
+          futureMoves.push(bestMove.san);
+        }
+        
+        // Add future moves to the line data
+        line.futureMoves = futureMoves;
+      } catch (error) {
+        console.warn("Could not calculate future moves for line", error);
+        line.futureMoves = [];
+      }
+    });
+  }
+  
   // Calculate computer accuracy percentages
   let accuracies = {
     white: {
@@ -212,6 +288,9 @@ export const generateAnalysisReport = (positions) => {
       black: accuracies.black.maximum ? (accuracies.black.current / accuracies.black.maximum * 100) : 100
     },
     classifications,
-    positions: positions
+    positions: positions,
+    settings: {
+      showEngineMoves: false // Default to false, user can toggle
+    }
   };
 };

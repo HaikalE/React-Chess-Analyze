@@ -4,12 +4,18 @@ import { useGameContext } from '../../contexts/GameContext';
 import EvaluationBar from './EvaluationBar';
 import BoardControls from './BoardControls';
 import { BOARD_SIZE } from '../../utils/boardUtils';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCirclePlay, faChessKnight } from '@fortawesome/free-solid-svg-icons';
 
 const Board = () => {
   const { 
     boardFlipped, 
     whitePlayer, 
     blackPlayer,
+    isViewingEngineLine,
+    activeEngineLine,
+    displayPosition,
+    clearActiveEngineLine
   } = useGameContext();
   
   const [showSuggestionArrows, setShowSuggestionArrows] = useState(true);
@@ -49,6 +55,24 @@ const Board = () => {
               onClick={handleBoardClick}
               className="w-full h-auto cursor-pointer border border-secondary-600 shadow-lg"
             />
+            
+            {/* Overlay for engine variation */}
+            {isViewingEngineLine && (
+              <div className="absolute top-2 left-2 right-2 bg-primary-900/80 text-white px-3 py-2 rounded-md flex items-center justify-between shadow-md">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faChessKnight} className="text-primary-300" />
+                  <span className="text-sm font-medium">
+                    Viewing engine line: {activeEngineLine?.moveSAN || 'Variation'}
+                  </span>
+                </div>
+                <button 
+                  onClick={clearActiveEngineLine}
+                  className="text-xs bg-primary-700 hover:bg-primary-600 px-2 py-1 rounded"
+                >
+                  Back to game
+                </button>
+              </div>
+            )}
           </div>
           
           {/* Bottom player */}
@@ -67,6 +91,7 @@ const Board = () => {
             <BoardControls 
               showSuggestionArrows={showSuggestionArrows} 
               setShowSuggestionArrows={setShowSuggestionArrows} 
+              onSave={() => {}}
             />
           </div>
         </div>

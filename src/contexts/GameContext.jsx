@@ -1,3 +1,4 @@
+import { Chess } from 'chess.js';
 import React, { createContext, useContext, useState, useReducer, useEffect } from 'react';
 
 // Initial state
@@ -12,6 +13,9 @@ const initialState = {
   analysisProgress: 0,
   analysisStatus: '',
   evaluatedPositions: [],
+  showEngineMoves: false, // New state for engine move visibility
+  activeEngineLine: null, // Track which engine line is being viewed
+  engineMoveIndex: 0, // Track position in engine line sequence
 };
 
 // Reducer function to handle state changes
@@ -25,6 +29,42 @@ function gameReducer(state, action) {
       return { ...state, currentMoveIndex: action.payload };
     case 'FLIP_BOARD':
       return { ...state, boardFlipped: !state.boardFlipped };
+    case 'TOGGLE_ENGINE_MOVES':
+      return { ...state, showEngineMoves: !state.showEngineMoves };
+    case 'SET_ENGINE_MOVES_VISIBILITY':
+      return { ...state, showEngineMoves: action.payload };
+    case 'SET_ACTIVE_ENGINE_LINE':
+      return { 
+        ...state, 
+        activeEngineLine: action.payload,
+        engineMoveIndex: 0 // Reset to start of line
+      };
+    case 'CLEAR_ACTIVE_ENGINE_LINE':
+      return { 
+        ...state, 
+        activeEngineLine: null,
+        engineMoveIndex: 0
+      };
+    case 'SET_ENGINE_MOVE_INDEX':
+      return { ...state, engineMoveIndex: action.payload };
+    case 'INCREMENT_ENGINE_MOVE_INDEX':
+      if (state.activeEngineLine) {
+        const maxMoves = state.activeEngineLine.futureMoves ? 
+                        state.activeEngineLine.futureMoves.length : 0;
+        return { 
+          ...state, 
+          engineMoveIndex: Math.min(state.engineMoveIndex + 1, maxMoves)
+        };
+      }
+      return state;
+    case 'DECREMENT_ENGINE_MOVE_INDEX':
+      if (state.activeEngineLine) {
+        return { 
+          ...state, 
+          engineMoveIndex: Math.max(state.engineMoveIndex - 1, 0)
+        };
+      }
+      return state;
     case 'SET_PLAYERS':
       return { 
         ...state, 
@@ -49,6 +89,8 @@ function gameReducer(state, action) {
         analysisProgress: 0,
         analysisStatus: '',
         evaluatedPositions: [],
+        activeEngineLine: null,
+        engineMoveIndex: 0
       };
     default:
       return state;
@@ -80,17 +122,111 @@ export const GameProvider = ({ children }) => {
     dispatch({ type: 'SET_CURRENT_MOVE_INDEX', payload: newIndex });
   };
   
+  // Handle moves based on whether we're viewing an engine line or not
+  const handleNextMove = () => {
+    if (state.activeEngineLine) {
+      dispatch({ type: 'INCREMENT_ENGINE_MOVE_INDEX' });
+    } else {
+      traverseMoves(1);
+    }
+  };
+  
+  const handlePrevMove = () => {
+    if (state.activeEngineLine && state.engineMoveIndex > 0) {
+      dispatch({ type: 'DECREMENT_ENGINE_MOVE_INDEX' });
+    } else if (state.activeEngineLine) {
+      // If we're at the start of an engine line, go back to the game
+      dispatch({ type: 'CLEAR_ACTIVE_ENGINE_LINE' });
+    } else {
+      traverseMoves(-1);
+    }
+  };
+  
+  // Get the position to display based on whether we're showing an engine line
+  const getDisplayPosition = () => {
+    if (!state.activeEngineLine) {
+      return currentPosition;
+    }
+    
+    try {
+      // Start with the current game position
+      const basePosition = currentPosition;
+      if (!basePosition) return null;
+      
+      // Create a chess instance to apply engine moves
+      const chess = new Chess(basePosition.fen);
+      
+      // Apply the initial engine move
+      const line = state.activeEngineLine;
+      if (line.moveUCI) {
+        const from = line.moveUCI.slice(0, 2);
+        const to = line.moveUCI.slice(2, 4);
+        const promotion = line.moveUCI.slice(4) || undefined;
+        
+        chess.move({ from, to, promotion });
+      }
+      
+      // Apply future moves up to engineMoveIndex
+      if (line.futureMoves) {
+        for (let i = 0; i < state.engineMoveIndex && i < line.futureMoves.length; i++) {
+          chess.move(line.futureMoves[i]);
+        }
+      }
+      
+      // Return a position object with the calculated FEN
+      return {
+        ...basePosition,
+        fen: chess.fen(),
+        isEngineLine: true,
+        activeVariation: line.id,
+        variationDepth: state.engineMoveIndex
+      };
+    } catch (error) {
+      console.error("Error calculating engine line position:", error);
+      return currentPosition;
+    }
+  };
+  
+  const displayPosition = getDisplayPosition();
+  
   // Expose state and dispatch functions
   const value = {
     ...state,
-    currentPosition,
+    currentPosition, // Original game position
+    displayPosition, // Position to display (may be from engine line)
     dispatch,
     traverseMoves,
-    goToStart: () => traverseMoves(-Infinity),
-    goToEnd: () => traverseMoves(Infinity),
-    nextMove: () => traverseMoves(1),
-    prevMove: () => traverseMoves(-1),
+    goToStart: () => {
+      if (state.activeEngineLine) {
+        dispatch({ type: 'SET_ENGINE_MOVE_INDEX', payload: 0 });
+      } else {
+        traverseMoves(-Infinity);
+      }
+    },
+    goToEnd: () => {
+      if (state.activeEngineLine && state.activeEngineLine.futureMoves) {
+        dispatch({ 
+          type: 'SET_ENGINE_MOVE_INDEX', 
+          payload: state.activeEngineLine.futureMoves.length 
+        });
+      } else {
+        traverseMoves(Infinity);
+      }
+    },
+    nextMove: handleNextMove,
+    prevMove: handlePrevMove,
     flipBoard: () => dispatch({ type: 'FLIP_BOARD' }),
+    toggleEngineMoves: () => dispatch({ type: 'TOGGLE_ENGINE_MOVES' }),
+    setEngineMoves: (visible) => dispatch({ 
+      type: 'SET_ENGINE_MOVES_VISIBILITY', 
+      payload: visible 
+    }),
+    setActiveEngineLine: (line) => dispatch({
+      type: 'SET_ACTIVE_ENGINE_LINE',
+      payload: line
+    }),
+    clearActiveEngineLine: () => dispatch({ type: 'CLEAR_ACTIVE_ENGINE_LINE' }),
+    isViewingEngineLine: !!state.activeEngineLine,
   };
   
   return (
