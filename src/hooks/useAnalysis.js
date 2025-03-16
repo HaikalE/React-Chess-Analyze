@@ -450,11 +450,11 @@ const useAnalysis = () => {
       let parsedPositions = null;
       let errorMessage = '';
       
-      // First try with our most robust parser
+      // Method 0: Try exact match for problematic PGNs first 
       try {
-        parsedPositions = tryExactMatch(pgn);
-        
-        if (parsedPositions && parsedPositions.positions.length > 1) {
+        const exactMatch = tryExactMatch(pgn);
+        if (exactMatch) {
+          parsedPositions = exactMatch;
           positions = parsedPositions.positions;
           
           // Update player info
@@ -466,15 +466,15 @@ const useAnalysis = () => {
             }
           });
           
-          console.log("Parsed with robust parser:", positions.length);
+          console.log("Parsed with exact match parser:", positions.length);
         }
-      } catch (robustError) {
-        errorMessage += `Robust parser: ${robustError.message}. `;
-        console.warn("Robust parser failed, trying standard methods...");
+      } catch (exactMatchError) {
+        console.warn("Exact match parsing failed, continuing with standard parsers...");
       }
       
-      // If robust parser didn't work, try standard methods
+      // Jika exact match tidak berhasil, lanjutkan dengan metode standar
       if (!positions) {
+        // Method 1: Simplest direct approach with chess.js
         try {
           positions = parseWithChessJs(pgn);
           console.log("Parsed positions directly with chess.js:", positions.length);
@@ -482,6 +482,7 @@ const useAnalysis = () => {
           errorMessage += `Direct parsing: ${directError.message}. `;
           console.warn("Direct chess.js parsing failed, trying simple parser...");
           
+          // Method 2: Simple dedicated parser
           try {
             parsedPositions = parseSimplePgn(pgn);
             positions = parsedPositions.positions;
@@ -500,6 +501,7 @@ const useAnalysis = () => {
             errorMessage += `Simple parser: ${simpleError.message}. `;
             console.warn("Simple parser failed, trying advanced parser...");
             
+            // Method 3: Advanced complex parser
             try {
               parsedPositions = parsePgnToPositions(pgn);
               positions = parsedPositions.positions;
@@ -518,6 +520,7 @@ const useAnalysis = () => {
               errorMessage += `Advanced parser: ${advancedError.message}.`;
               console.warn("All standard parsers failed, trying emergency parser...");
               
+              // Method 4: Emergency fallback parser
               try {
                 parsedPositions = emergencyParsePgn(pgn);
                 positions = parsedPositions.positions;

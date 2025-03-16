@@ -1,17 +1,76 @@
 /**
- * Parser PGN yang lebih robust dengan penanganan promosi dan recovery yang lebih baik
+ * Universal PGN Parser - Handles all standard PGN formats without any game-specific hardcoding
+ * Designed to replace robustPgnParser.js
  */
 import { Chess } from 'chess.js';
 
 /**
- * Parse PGN dengan metode adaptif dan robust
- * @param {string} pgn - PGN text untuk diproses
- * @returns {Object} - Object dengan positions array dan player info
+ * Main entry point for parsing PGN
+ * @param {string} pgn - PGN string to parse
+ * @returns {Object} - Object with positions array and player info
  */
-export const parseRobustPgn = (pgn) => {
-  console.log("Using enhanced robust PGN parser");
+export function tryExactMatch(pgn) {
+  return parseUniversalPgn(pgn);
+}
+
+/**
+ * Parse PGN string with multiple fallback strategies
+ * @param {string} pgn - PGN string to parse
+ * @returns {Object} - Object with positions array and player info
+ */
+export function parseUniversalPgn(pgn) {
+  console.log("Using universal PGN parser");
   
-  // Extract player info
+  // Extract player info from headers
+  const playerInfo = extractPlayerInfo(pgn);
+  
+  // Try multiple parsing strategies with fallbacks
+  
+  // Strategy 1: Direct parsing with Chess.js
+  try {
+    const result = parseWithChessJS(pgn);
+    if (result && result.positions.length > 1) {
+      console.log(`Direct Chess.js parsing successful: ${result.positions.length-1} moves`);
+      return { positions: result.positions, playerInfo };
+    }
+  } catch (e) {
+    console.warn("Direct Chess.js parsing failed:", e.message);
+  }
+  
+  // Strategy 2: Standard move extraction and application
+  try {
+    const result = parseWithMoveByMove(pgn);
+    if (result && result.positions.length > 1) {
+      console.log(`Standard move-by-move parsing successful: ${result.positions.length-1} moves`);
+      return { positions: result.positions, playerInfo };
+    }
+  } catch (e) {
+    console.warn("Standard move-by-move parsing failed:", e.message);
+  }
+  
+  // Strategy 3: Advanced move extraction with recovery
+  try {
+    const result = parseWithAdvancedRecovery(pgn);
+    if (result && result.positions.length > 1) {
+      console.log(`Advanced recovery parsing successful: ${result.positions.length-1} moves`);
+      return { positions: result.positions, playerInfo };
+    }
+  } catch (e) {
+    console.warn("Advanced recovery parsing failed:", e.message);
+  }
+  
+  // Return minimal positions if all else fails
+  console.error("All parsing methods failed");
+  return {
+    positions: [{ fen: new Chess().fen() }],
+    playerInfo
+  };
+}
+
+/**
+ * Extract player info from PGN headers
+ */
+function extractPlayerInfo(pgn) {
   const playerInfo = {
     white: { username: 'White Player', rating: '?' },
     black: { username: 'Black Player', rating: '?' }
@@ -28,510 +87,601 @@ export const parseRobustPgn = (pgn) => {
   if (whiteEloMatch) playerInfo.white.rating = whiteEloMatch[1];
   if (blackEloMatch) playerInfo.black.rating = blackEloMatch[1];
   
-  // Strategy 1: Proper PGN Formatting
-  try {
-    // Format headers properly
-    const headerRegex = /\[(.*?)\s+"(.*?)"\]/g;
-    let match;
-    let headers = [];
-    
-    // Extract headers
-    while ((match = headerRegex.exec(pgn)) !== null) {
-      headers.push(`[${match[1]} "${match[2]}"]`);
-    }
-    
-    // Format headers with newlines
-    const formattedHeaders = headers.join('\n') + '\n\n';
-    
-    // Extract and clean moves section
-    let movesText = pgn.replace(/\[[^\]]*\]/g, '').trim();
-    movesText = movesText
-      .replace(/\{[^}]*\}/g, '')      // Remove comments
-      .replace(/\([^)]*\)/g, '')      // Remove variations
-      .replace(/\$\d+/g, '')          // Remove NAGs
-      .replace(/\s+/g, ' ')           // Normalize whitespace
-      .replace(/\s*1-0\s*$|\s*0-1\s*$|\s*1\/2-1\/2\s*$|\s*\*\s*$/, '') // Remove result
-      .trim();
-    
-    const formattedPgn = formattedHeaders + movesText;
-    
-    console.log("Attempting to parse with formatted PGN");
-    
-    // Try direct PGN loading
-    const chess = new Chess();
-    if (chess.loadPgn(formattedPgn, { sloppy: true })) {
-      console.log("Direct PGN loading successful!");
+  return playerInfo;
+}
+
+/**
+ * Clean and normalize PGN text
+ */
+function cleanPgn(pgn) {
+  return pgn
+    .replace(/\{[^}]*\}/g, '')      // Remove comments
+    .replace(/\([^)]*\)/g, '')      // Remove variations
+    .replace(/\$\d+/g, '')          // Remove NAGs
+    .replace(/Cannot\s+move/gi, '') // Remove problem words
+    .replace(/Invalid\s+move/gi, '')
+    .replace(/Illegal\s+move/gi, '')
+    .replace(/\s+/g, ' ')           // Normalize whitespace
+    .replace(/\s*1-0\s*$|\s*0-1\s*$|\s*1\/2-1\/2\s*$|\s*\*\s*$/, '') // Remove result
+    .trim();
+}
+
+/**
+ * Parse using Chess.js's built-in parser
+ */
+function parseWithChessJS(pgn) {
+  // Format headers properly for chess.js
+  const headerRegex = /\[(.*?)\s+"(.*?)"\]/g;
+  let match;
+  let headers = [];
+  
+  // Extract headers
+  while ((match = headerRegex.exec(pgn)) !== null) {
+    headers.push(`[${match[1]} "${match[2]}"]`);
+  }
+  
+  // Format headers with newlines
+  const formattedHeaders = headers.join('\n') + '\n\n';
+  
+  // Extract and clean moves section
+  let movesText = pgn.replace(/\[(.*?)\s+"(.*?)"\]/g, '').trim();
+  movesText = cleanPgn(movesText);
+  
+  const formattedPgn = formattedHeaders + movesText;
+  
+  // Try direct PGN loading
+  const chess = new Chess();
+  if (!chess.loadPgn(formattedPgn, { sloppy: true })) {
+    throw new Error("Chess.js failed to load PGN");
+  }
+  
+  // Get position history
+  const history = chess.history({ verbose: true });
+  chess.reset();
+  
+  // Generate positions
+  const positions = [{ fen: chess.fen() }];
+  
+  for (const move of history) {
+    chess.move(move);
+    positions.push({
+      fen: chess.fen(),
+      move: {
+        san: move.san,
+        uci: move.from + move.to + (move.promotion || '')
+      }
+    });
+  }
+  
+  return { positions };
+}
+
+/**
+ * Parse by extracting moves and applying them one by one
+ */
+function parseWithMoveByMove(pgn) {
+  // Clean PGN
+  let cleanedPgn = cleanPgn(pgn);
+  
+  // Extract moves using multiple patterns to maximize extraction
+  const moves = extractMoves(cleanedPgn);
+  console.log(`Extracted ${moves.length} moves from PGN`);
+  
+  if (moves.length === 0) {
+    throw new Error("No moves found in PGN");
+  }
+  
+  // Init chess and positions array
+  const chess = new Chess();
+  const positions = [{ fen: chess.fen() }];
+  
+  let successCount = 0;
+  
+  // Try to apply each move
+  for (const moveText of moves) {
+    try {
+      // First handle special cases like promotion
+      let result = null;
       
-      // Get position history
-      const history = chess.history({ verbose: true });
-      chess.reset();
+      if (moveText.includes('=')) {
+        result = handlePromotion(chess, moveText);
+      } else {
+        // Try normal move
+        result = chess.move(moveText, { sloppy: true });
+      }
       
-      // Generate positions
-      const positions = [{ fen: chess.fen() }];
-      
-      for (const move of history) {
-        chess.move(move);
+      if (result) {
+        successCount++;
         positions.push({
           fen: chess.fen(),
           move: {
-            san: move.san,
-            uci: move.from + move.to + (move.promotion || '')
+            san: result.san,
+            uci: result.from + result.to + (result.promotion || '')
           }
         });
       }
-      
-      console.log(`Direct parsing generated ${positions.length-1} positions`);
-      return { positions, playerInfo };
+    } catch (e) {
+      console.warn(`Failed to apply move ${moveText}: ${e.message}`);
+      // No recovery, just continue with next move
     }
-  } catch (directError) {
-    console.warn("Direct parsing failed:", directError.message);
   }
   
-  // Strategy 2: Move by Move with Incremental Recovery
-  try {
-    // Extract moves with robust regex pattern
-    let movesText = pgn.replace(/\[[^\]]*\]/g, '').trim();
-    movesText = movesText
-      .replace(/\{[^}]*\}/g, '')
-      .replace(/\([^)]*\)/g, '')
-      .replace(/\$\d+/g, '')
-      .replace(/\s+/g, ' ')
-      .replace(/\s*1-0\s*$|\s*0-1\s*$|\s*1\/2-1\/2\s*$|\s*\*\s*$/, '')
-      .trim();
+  console.log(`Successfully applied ${successCount}/${moves.length} moves`);
+  
+  if (successCount === 0) {
+    throw new Error("No moves could be applied");
+  }
+  
+  return { positions };
+}
+
+/**
+ * Parse with advanced move extraction and recovery techniques
+ */
+function parseWithAdvancedRecovery(pgn) {
+  // Clean PGN
+  let cleanedPgn = cleanPgn(pgn);
+  
+  // Extract moves using multiple patterns
+  const moves = extractMovesAdvanced(cleanedPgn);
+  console.log(`Advanced extraction found ${moves.length} moves`);
+  
+  if (moves.length === 0) {
+    throw new Error("Advanced extraction found no moves");
+  }
+  
+  // Init chess and positions array
+  const chess = new Chess();
+  const positions = [{ fen: chess.fen() }];
+  
+  let successCount = 0;
+  
+  // Try to apply each move with advanced recovery
+  for (let i = 0; i < moves.length; i++) {
+    const moveText = moves[i];
+    let applied = false;
     
-    // Array of different regex patterns to try for move extraction
-    const patterns = [
-      // Pattern 1: Standard "1. e4 e5" format
-      /(\d+)\.\s+([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?)\s+(?:([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?))?/g,
-      
-      // Pattern 2: Without move numbers - just raw moves
-      /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?)\b/g,
-      
-      // Pattern 3: Specific for promotion format
-      /\b([a-h][1-8]=[QRBNP][+#]?)\b/g,
-      
-      // Pattern 4: Specific for checkmate moves
-      /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8][+#])\b/g
-    ];
+    // Try different approaches for each move
     
-    // Try each pattern to extract moves
-    let extractedMoves = [];
-    
-    for (const pattern of patterns) {
-      pattern.lastIndex = 0; // Reset pattern
+    // Approach 1: Direct application
+    try {
+      let result;
       
-      const movesFromPattern = [];
-      let match;
+      if (moveText.includes('=')) {
+        result = handlePromotionAdvanced(chess, moveText);
+      } else {
+        result = chess.move(moveText, { sloppy: true });
+      }
       
-      while ((match = pattern.exec(movesText)) !== null) {
-        // Extract all capture groups that contain moves
-        for (let i = 1; i < match.length; i++) {
-          if (match[i] && /^[KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?$/.test(match[i])) {
-            movesFromPattern.push(match[i]);
+      if (result) {
+        successCount++;
+        positions.push({
+          fen: chess.fen(),
+          move: {
+            san: result.san,
+            uci: result.from + result.to + (result.promotion || '')
           }
-        }
+        });
+        applied = true;
+        continue;
       }
-      
-      // If we got moves from this pattern, add them
-      if (movesFromPattern.length > 0) {
-        // Only use pattern results if they make sense
-        if (extractedMoves.length === 0 || movesFromPattern.length > extractedMoves.length) {
-          extractedMoves = movesFromPattern;
-        }
-      }
+    } catch (e) {
+      // Continue to next approach
     }
     
-    console.log(`Extracted ${extractedMoves.length} moves`);
-    
-    // Validate and apply moves incrementally
-    const chess = new Chess();
-    const positions = [{ fen: chess.fen() }];
-    
-    for (let i = 0; i < extractedMoves.length; i++) {
-      const moveText = extractedMoves[i];
-      
+    // Approach 2: Try without check/mate symbols
+    if (!applied) {
       try {
-        // Special handling for promotion
-        let result;
-        
-        if (moveText.includes('=')) {
-          // Extract promotion info
-          const from = moveText.slice(0, 2);
-          const to = moveText.slice(0, 1) + moveText.slice(2, 3);
-          const promotion = moveText.slice(4, 5).toLowerCase();
-          
-          result = chess.move({
-            from: from,
-            to: to,
-            promotion: promotion
-          });
-          
-          console.log(`Applied promotion move: ${moveText}`);
-        } 
-        else {
-          // Try with original notation
-          result = chess.move(moveText, { sloppy: true });
-        }
+        const cleanMove = moveText.replace(/[+#]/, '');
+        const result = chess.move(cleanMove, { sloppy: true });
         
         if (result) {
+          successCount++;
           positions.push({
             fen: chess.fen(),
             move: {
-              san: result.san,
+              san: moveText, // Keep original notation for display
               uci: result.from + result.to + (result.promotion || '')
             }
           });
-        } else {
-          throw new Error(`Move not recognized: ${moveText}`);
+          applied = true;
+          continue;
         }
-      } catch (moveError) {
-        console.warn(`Error applying move ${moveText}:`, moveError.message);
+      } catch (e) {
+        // Continue to next approach
+      }
+    }
+    
+    // Approach 3: Find similar legal moves
+    if (!applied) {
+      try {
+        const legalMoves = chess.moves({ verbose: true });
+        let bestMatch = null;
+        let bestScore = 0;
         
-        // Recovery Strategy 1: Try with checkmate/check symbols removed
-        try {
-          const cleanMove = moveText.replace(/[+#]/, '');
-          const result = chess.move(cleanMove, { sloppy: true });
-          
-          if (result) {
-            // Use original notation for display
-            positions.push({
-              fen: chess.fen(),
-              move: {
-                san: moveText.includes('#') ? moveText : result.san,
-                uci: result.from + result.to + (result.promotion || '')
-              }
-            });
-            console.log(`Recovered using cleaned notation: ${cleanMove}`);
-            continue;
+        for (const legalMove of legalMoves) {
+          const score = calculateSimilarity(moveText, legalMove.san);
+          if (score > bestScore && score > 0.6) { // Minimum 60% similarity
+            bestScore = score;
+            bestMatch = legalMove;
           }
-        } catch (cleanError) {
-          // Fall through to next recovery method
         }
         
-        // Recovery Strategy 2: Find any legal move that looks similar
-        try {
-          const legalMoves = chess.moves({ verbose: true });
-          
-          // For promotion: find any pawn promotion to the target square
-          if (moveText.includes('=')) {
-            const targetFile = moveText[0];
-            const targetRank = moveText[2];
-            const promotionPiece = moveText[4].toLowerCase();
-            
-            const promotionMove = legalMoves.find(move => 
-              move.piece === 'p' && 
-              move.to[0] === targetFile && 
-              move.to[1] === targetRank && 
-              move.promotion === promotionPiece
-            );
-            
-            if (promotionMove) {
-              chess.move(promotionMove);
-              positions.push({
-                fen: chess.fen(),
-                move: {
-                  san: moveText, // Keep original promotion notation
-                  uci: promotionMove.from + promotionMove.to + promotionMove.promotion
-                }
-              });
-              console.log(`Recovered using similar promotion move: ${JSON.stringify(promotionMove)}`);
-              continue;
+        if (bestMatch) {
+          chess.move(bestMatch);
+          successCount++;
+          positions.push({
+            fen: chess.fen(),
+            move: {
+              san: bestMatch.san,
+              uci: bestMatch.from + bestMatch.to + (bestMatch.promotion || '')
             }
-          }
-          
-          // For other moves: find the most similar legal move
-          let bestMatch = null;
-          let bestSimilarity = 0;
-          
-          for (const legalMove of legalMoves) {
-            const similarity = calculateSimilarity(moveText, legalMove.san);
-            if (similarity > bestSimilarity) {
-              bestSimilarity = similarity;
-              bestMatch = legalMove;
-            }
-          }
-          
-          if (bestMatch && bestSimilarity > 0.5) {
-            chess.move(bestMatch);
-            positions.push({
-              fen: chess.fen(),
-              move: {
-                san: moveText.includes('#') ? moveText : bestMatch.san,
-                uci: bestMatch.from + bestMatch.to + (bestMatch.promotion || '')
-              }
-            });
-            console.log(`Recovered using similar move: ${bestMatch.san} (similarity: ${bestSimilarity})`);
-            continue;
-          }
-        } catch (similarError) {
-          // Fall through to next recovery method
+          });
+          applied = true;
+          continue;
         }
-        
-        // Recovery Strategy 3: Context-based recovery for critical moves
-        if (moveText === "g1=Q+" || moveText.includes("g1=Q")) {
-          // Look for pawn on g2 and try to promote it
-          const fen = chess.fen();
-          if (fen.includes("g2")) {
+      } catch (e) {
+        // Continue to next approach
+      }
+    }
+    
+    // Approach 4: Special case for problematic promotions
+    if (!applied && moveText.includes('=')) {
+      const match = moveText.match(/^([a-h])([1-8])=([QRBNP])/);
+      if (match) {
+        try {
+          const toFile = match[1];
+          const toRank = match[2];
+          const promotionPiece = match[3].toLowerCase();
+          const toSquare = toFile + toRank;
+          
+          // Try all pawns that could promote
+          const pawns = findPawnsThatCanPromote(chess, toSquare);
+          
+          for (const pawn of pawns) {
             try {
               const result = chess.move({
-                from: 'g2',
-                to: 'g1',
-                promotion: 'q'
+                from: pawn,
+                to: toSquare,
+                promotion: promotionPiece
               });
               
               if (result) {
+                successCount++;
                 positions.push({
                   fen: chess.fen(),
                   move: {
-                    san: "g1=Q+",
-                    uci: "g2g1q"
+                    san: moveText,
+                    uci: pawn + toSquare + promotionPiece
                   }
                 });
-                console.log("Recovered g1=Q+ promotion through special handling");
-                continue;
+                applied = true;
+                break;
               }
-            } catch (promotionError) {
-              console.error("Special g1=Q+ handling failed:", promotionError.message);
+            } catch (e) {
+              // Try next pawn
             }
           }
-        }
-        
-        // If we reached here, we couldn't recover this move - log and skip it
-        console.error(`Failed to recover move ${moveText}, skipping...`);
-      }
-    }
-    
-    // Add any missing moves if there's a specific pattern we should enforce
-    if (positions.length < extractedMoves.length) {
-      console.log(`Detected ${positions.length-1} moves applied, but ${extractedMoves.length} were extracted`);
-      
-      // Check for specific patterns to enforce
-      if (pgn.includes("g1=Q+") && pgn.includes("Qxd2#")) {
-        // Find if promotion occurred
-        const hasPromotion = positions.some(p => 
-          p.move && (p.move.san.includes("=Q") || p.move.uci.includes("g1q"))
-        );
-        
-        // If the last move isn't checkmate and we should have one
-        const lastPos = positions[positions.length-1];
-        const hasCheckmate = lastPos.move && lastPos.move.san.includes("#");
-        
-        if (!hasCheckmate && pgn.includes("Qxd2#")) {
-          console.log("Missing checkmate move, attempting to add it");
           
-          try {
-            // Reset to latest state
-            const finalChess = new Chess(lastPos.fen);
-            
-            // Try to find any queen move to d2
-            const legalMoves = finalChess.moves({ verbose: true });
-            const queenToD2 = legalMoves.find(m => m.piece === 'q' && m.to === 'd2');
-            
-            if (queenToD2) {
-              finalChess.move(queenToD2);
-              positions.push({
-                fen: finalChess.fen(),
-                move: {
-                  san: "Qxd2#",
-                  uci: queenToD2.from + "d2"
-                }
-              });
-              console.log("Successfully added final checkmate move");
-            }
-          } catch (finalError) {
-            console.error("Error adding final checkmate move:", finalError.message);
-          }
+          if (applied) continue;
+        } catch (e) {
+          // Continue
         }
       }
     }
     
-    console.log(`Move-by-move parsing generated ${positions.length-1} positions`);
-    return { positions, playerInfo };
-  } catch (moveByMoveError) {
-    console.error("Move-by-move parsing failed:", moveByMoveError.message);
+    // If we couldn't apply this move after all approaches, log and continue
+    if (!applied) {
+      console.warn(`Could not apply move ${moveText} after all recovery attempts`);
+    }
   }
   
-  // Fallback Strategy: Progressive Chunk Parsing
-  try {
-    console.log("Attempting progressive chunk parsing");
-    
-    // Clean the PGN
-    let movesText = pgn.replace(/\[[^\]]*\]/g, '').trim()
-      .replace(/\{[^}]*\}/g, '')
-      .replace(/\([^)]*\)/g, '')
-      .replace(/\$\d+/g, '')
-      .replace(/\s+/g, ' ')
-      .replace(/\s*1-0\s*$|\s*0-1\s*$|\s*1\/2-1\/2\s*$|\s*\*\s*$/, '')
-      .trim();
-    
-    // Break the game into chunks to try to process
-    const chunkSize = 8; // Process 8 moves at a time
-    const moveRegex = /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?)\b/g;
-    
-    let allMoves = [];
-    let match;
-    
-    // Extract all moves
-    while ((match = moveRegex.exec(movesText)) !== null) {
-      if (match[1]) allMoves.push(match[1]);
-    }
-    
-    console.log(`Found ${allMoves.length} moves for chunked processing`);
-    
-    // Process in chunks
-    const chess = new Chess();
-    const positions = [{ fen: chess.fen() }];
-    
-    for (let i = 0; i < allMoves.length; i += chunkSize) {
-      // Get a chunk of moves
-      const chunk = allMoves.slice(i, i + chunkSize);
-      console.log(`Processing chunk ${i/chunkSize + 1}: ${chunk.join(' ')}`);
-      
-      // Format a mini-PGN for just this chunk
-      let chunkPgn = "1. ";
-      let moveNum = 1;
-      let isWhite = true;
-      
-      for (const move of chunk) {
-        if (isWhite) {
-          chunkPgn += move + " ";
-        } else {
-          chunkPgn += move + " " + (moveNum + 1) + ". ";
-          moveNum++;
-        }
-        isWhite = !isWhite;
-      }
-      
-      // Clean up the last move number if needed
-      chunkPgn = chunkPgn.replace(/\s+\d+\.\s*$/, "");
-      
-      // Initialize a fresh chess instance for this chunk
-      const chunkChess = new Chess();
-      
-      try {
-        // Try to load the chunk
-        if (chunkChess.loadPgn(chunkPgn, { sloppy: true })) {
-          const chunkHistory = chunkChess.history({ verbose: true });
-          console.log(`Successfully parsed chunk with ${chunkHistory.length} moves`);
-          
-          // Apply these same moves to our main chess instance
-          for (const move of chunkHistory) {
-            try {
-              const result = chess.move(move);
-              
-              if (result) {
-                positions.push({
-                  fen: chess.fen(),
-                  move: {
-                    san: result.san,
-                    uci: result.from + result.to + (result.promotion || '')
-                  }
-                });
-              }
-            } catch (moveErr) {
-              console.warn(`Error applying chunked move ${move.san}:`, moveErr.message);
-              
-              // Try to recover - fallback by using raw san
-              try {
-                const fallbackResult = chess.move(move.san, { sloppy: true });
-                if (fallbackResult) {
-                  positions.push({
-                    fen: chess.fen(),
-                    move: {
-                      san: fallbackResult.san,
-                      uci: fallbackResult.from + fallbackResult.to + (fallbackResult.promotion || '')
-                    }
-                  });
-                  console.log(`Recovered move ${move.san} using sloppy mode`);
-                }
-              } catch (recoveryErr) {
-                console.error(`Failed to recover move ${move.san}:`, recoveryErr.message);
-              }
-            }
-          }
-        } else {
-          console.warn(`Chunk PGN loading failed: ${chunkPgn}`);
-          
-          // Try each move individually in the chunk instead
-          for (const move of chunk) {
-            try {
-              // Handle promotion specifically
-              let result;
-              
-              if (move.includes('=')) {
-                // Parse promotion
-                const from = move.slice(0, 2);
-                const to = move.slice(0, 1) + move.slice(2, 3);
-                const promotion = move.slice(4, 5).toLowerCase();
-                
-                result = chess.move({
-                  from: from,
-                  to: to,
-                  promotion: promotion
-                });
-              } else {
-                result = chess.move(move, { sloppy: true });
-              }
-              
-              if (result) {
-                positions.push({
-                  fen: chess.fen(),
-                  move: {
-                    san: result.san,
-                    uci: result.from + result.to + (result.promotion || '')
-                  }
-                });
-                console.log(`Applied move ${move} individually`);
-              }
-            } catch (individualErr) {
-              console.warn(`Error applying individual move ${move}:`, individualErr.message);
-            }
-          }
-        }
-      } catch (chunkErr) {
-        console.warn(`Error processing chunk:`, chunkErr.message);
-      }
-    }
-    
-    // Ensure we have progress - at least some moves were applied
-    if (positions.length > 1) {
-      console.log(`Chunked parsing generated ${positions.length-1} positions`);
-      return { positions, playerInfo };
-    }
-  } catch (chunkError) {
-    console.error("Chunked parsing failed:", chunkError.message);
+  console.log(`Advanced recovery applied ${successCount}/${moves.length} moves`);
+  
+  if (successCount === 0) {
+    throw new Error("Could not apply any moves with advanced recovery");
   }
   
-  // If all strategies failed, create a minimal result with starting position
-  console.error("All parsing strategies failed - returning minimal result");
-  return { 
-    positions: [{ fen: new Chess().fen() }],
-    playerInfo 
-  };
-};
+  return { positions };
+}
 
 /**
- * Helper function to calculate similarity between move texts
+ * Find pawns that could potentially promote to a target square
  */
-function calculateSimilarity(move1, move2) {
-  // Remove check and mate symbols for comparison
-  const clean1 = move1.replace(/[+#]/, '');
-  const clean2 = move2.replace(/[+#]/, '');
+function findPawnsThatCanPromote(chess, targetSquare) {
+  const turn = chess.turn();
+  const board = chess.board();
+  const pawns = [];
+  
+  // Check the target rank
+  const targetRank = parseInt(targetSquare[1]);
+  
+  // Only pawns on the 7th rank (for white) or 2nd rank (for black) can promote
+  const sourceRank = turn === 'w' ? 6 : 1; // 0-based index (7th rank is 6, 2nd rank is 1)
+  
+  // Check pawns in the corresponding file and adjacent files
+  const targetFile = targetSquare.charCodeAt(0) - 97; // 'a' is 97 in ASCII
+  const filesToCheck = [targetFile - 1, targetFile, targetFile + 1].filter(f => f >= 0 && f < 8);
+  
+  for (const file of filesToCheck) {
+    const piece = board[sourceRank][file];
+    if (piece && piece.type === 'p' && piece.color === turn) {
+      const pawnSquare = String.fromCharCode(97 + file) + (8 - sourceRank);
+      pawns.push(pawnSquare);
+    }
+  }
+  
+  return pawns;
+}
+
+/**
+ * Extract moves using multiple regex patterns
+ */
+function extractMoves(pgn) {
+  // Try several patterns to extract moves
+  const patterns = [
+    // Standard algebraic moves including promotions, check, and mate
+    /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?)\b/g,
+    
+    // Move numbers with white and black moves
+    /\d+\.\s+([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?)\s+(?:([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?))?/g
+  ];
+  
+  const allMoves = [];
+  
+  // Try each pattern
+  for (const pattern of patterns) {
+    let match;
+    const matches = [];
+    
+    // Reset pattern
+    pattern.lastIndex = 0;
+    
+    while ((match = pattern.exec(pgn)) !== null) {
+      // Add all capturing groups that look like moves
+      for (let i = 1; i < match.length; i++) {
+        if (match[i] && isValidMoveText(match[i])) {
+          matches.push(match[i]);
+        }
+      }
+    }
+    
+    // If this pattern found more moves, use it
+    if (matches.length > allMoves.length) {
+      allMoves.length = 0;
+      allMoves.push(...matches);
+    }
+  }
+  
+  return allMoves;
+}
+
+/**
+ * Advanced move extraction with more patterns
+ */
+function extractMovesAdvanced(pgn) {
+  const patterns = [
+    // Standard moves
+    /\b([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?)\b/g,
+    
+    // Move numbers with standard format
+    /\d+\.\s+([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?)\s+(?:([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?))?/g,
+    
+    // Specific pattern for promotion moves
+    /\b([a-h][1-8]=[QRBNP][+#]?)\b/g,
+    
+    // Pattern for castling with zeros (0-0 instead of O-O)
+    /\b(0-0(?:-0)?)\b/g
+  ];
+  
+  // Also handle variations in move number format
+  const movesText = pgn
+    .replace(/(\d+)\.{3}/g, '$1... ') // Fix common ellipsis format
+    .replace(/(\d+)\.{2,}/g, '$1... ') // Normalize any number of dots
+    .replace(/\b0-0\b/g, 'O-O')        // Normalize castling
+    .replace(/\b0-0-0\b/g, 'O-O-O');   // Normalize long castling
+  
+  // Collect all unique moves
+  const allMoves = new Set();
+  
+  // Try all patterns
+  for (const pattern of patterns) {
+    let match;
+    pattern.lastIndex = 0;
+    
+    while ((match = pattern.exec(movesText)) !== null) {
+      for (let i = 1; i < match.length; i++) {
+        if (match[i] && isValidMoveText(match[i])) {
+          allMoves.add(match[i]);
+        }
+      }
+    }
+  }
+  
+  // Process the moves to ensure they're in the correct order
+  const result = [];
+  const moveNumberPattern = /(\d+)\.(?:\s+|\.\.\.\s*)([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?)\s*(?:([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?|O-O(?:-O)?))?/g;
+  
+  // Try to extract moves in order using move numbers
+  let moveNumberMatch;
+  while ((moveNumberMatch = moveNumberPattern.exec(movesText)) !== null) {
+    if (moveNumberMatch[2]) result.push(moveNumberMatch[2]);
+    if (moveNumberMatch[3]) result.push(moveNumberMatch[3]);
+  }
+  
+  // If we didn't get moves in order, use the unordered set
+  if (result.length === 0) {
+    result.push(...allMoves);
+  }
+  
+  return result;
+}
+
+/**
+ * Check if text looks like a valid chess move
+ */
+function isValidMoveText(text) {
+  if (!text) return false;
+  
+  // Check for castling
+  if (text === 'O-O' || text === 'O-O-O') return true;
+  
+  // Check for standard algebraic notation
+  return /^[KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNP])?[+#]?$/.test(text);
+}
+
+/**
+ * Special handling for promotion moves
+ */
+function handlePromotion(chess, moveText) {
+  // Remove check/mate symbols
+  const cleanMove = moveText.replace(/[+#]/, '');
+  
+  // Parse promotion format (e.g., g1=Q)
+  const match = cleanMove.match(/^([a-h][1-8])=([QRBNP])$/);
+  if (!match) return null;
+  
+  const toSquare = match[1];
+  const promotionPiece = match[2].toLowerCase();
+  
+  // Find source square by looking at legal moves
+  const legalMoves = chess.moves({ verbose: true });
+  
+  // Find promotion move to the target square
+  for (const move of legalMoves) {
+    if (move.to === toSquare && move.promotion) {
+      return chess.move({
+        from: move.from,
+        to: toSquare,
+        promotion: promotionPiece
+      });
+    }
+  }
+  
+  // Try to guess the source square based on typical pawn movement
+  const toFile = toSquare.charAt(0);
+  const toRank = toSquare.charAt(1);
+  
+  // For white pawns promoting to 8th rank, check 7th rank
+  // For black pawns promoting to 1st rank, check 2nd rank
+  const fromRank = toRank === '8' ? '7' : '2';
+  const possibleFromSquares = [
+    toFile + fromRank,  // Straight push
+    String.fromCharCode(toFile.charCodeAt(0) - 1) + fromRank,  // Capture from left
+    String.fromCharCode(toFile.charCodeAt(0) + 1) + fromRank   // Capture from right
+  ];
+  
+  // Try each possible source square
+  for (const fromSquare of possibleFromSquares) {
+    try {
+      return chess.move({
+        from: fromSquare,
+        to: toSquare,
+        promotion: promotionPiece
+      });
+    } catch (e) {
+      // Continue to next potential source square
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Advanced promotion handling with additional recovery
+ */
+function handlePromotionAdvanced(chess, moveText) {
+  // Try standard promotion handling first
+  const result = handlePromotion(chess, moveText);
+  if (result) return result;
+  
+  // Advanced handling if standard fails
+  const cleanMove = moveText.replace(/[+#]/, '');
+  const match = cleanMove.match(/^([a-h])([1-8])=([QRBNP])$/);
+  
+  if (!match) return null;
+  
+  const toFile = match[1];
+  const toRank = match[2];
+  const promotionPiece = match[3].toLowerCase();
+  const toSquare = toFile + toRank;
+  
+  // Check if there are any pawns that can promote
+  const turn = chess.turn();
+  const board = chess.board();
+  
+  // Check pawns in the right file or adjacent files
+  const fileIndex = toFile.charCodeAt(0) - 97; // 'a' is 97
+  
+  // Source rank depends on turn
+  const sourceRank = turn === 'w' ? 6 : 1; // 0-based index (7th rank is 6, 2nd rank is 1)
+  
+  // Check all files for pawns
+  for (let fileOffset = -1; fileOffset <= 1; fileOffset++) {
+    const checkFile = fileIndex + fileOffset;
+    if (checkFile < 0 || checkFile > 7) continue;
+    
+    // Check if there's a pawn
+    if (board[sourceRank] && board[sourceRank][checkFile]) {
+      const piece = board[sourceRank][checkFile];
+      if (piece && piece.type === 'p' && piece.color === turn) {
+        const fromSquare = String.fromCharCode(97 + checkFile) + (8 - sourceRank);
+        
+        try {
+          return chess.move({
+            from: fromSquare,
+            to: toSquare,
+            promotion: promotionPiece
+          });
+        } catch (e) {
+          // Try next possible pawn
+        }
+      }
+    }
+  }
+  
+  // If all else fails, check every square for a pawn that can move to the target
+  for (let rank = 0; rank < 8; rank++) {
+    for (let file = 0; file < 8; file++) {
+      if (board[rank] && board[rank][file]) {
+        const piece = board[rank][file];
+        if (piece && piece.type === 'p' && piece.color === turn) {
+          const fromSquare = String.fromCharCode(97 + file) + (8 - rank);
+          
+          try {
+            return chess.move({
+              from: fromSquare,
+              to: toSquare,
+              promotion: promotionPiece
+            });
+          } catch (e) {
+            // Try next square
+          }
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Calculate similarity between two text strings
+ */
+function calculateSimilarity(text1, text2) {
+  if (!text1 || !text2) return 0;
+  
+  // Clean the texts for better comparison
+  const clean1 = text1.replace(/[+#]/, '');
+  const clean2 = text2.replace(/[+#]/, '');
   
   // Count matching characters
-  let matches = 0;
   const minLength = Math.min(clean1.length, clean2.length);
+  let matches = 0;
   
   for (let i = 0; i < minLength; i++) {
     if (clean1[i] === clean2[i]) matches++;
   }
   
   return matches / Math.max(clean1.length, clean2.length);
-}
-
-/**
- * Main entry point for robust parsing
- */
-export function tryExactMatch(pgn) {
-  return parseRobustPgn(pgn);
 }
