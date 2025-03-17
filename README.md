@@ -133,7 +133,8 @@ Visit [chessanalyzer.example.com](https://chessanalyzer.example.com) to see the 
 ## Screenshots
 
 <p align="center">
-  <img src="screenshots/main-interface.png" alt="Main Interface" width="80%"/>
+  <img src="https://github.com/user-attachments/assets/c0a2d4f7-2d81-4fd5-908a-dae59e27f84a" alt="Main Interface" width="80%"/>
+
 </p>
 
 <p align="center">
