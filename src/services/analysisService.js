@@ -7,8 +7,62 @@ import openings from '../data/openings.json';
 import { Chess } from 'chess.js';
 
 /**
+ * Check if a UCI move is valid in the given position
+ * @param {Chess} chess - Chess.js instance
+ * @param {string} moveUCI - UCI move to check
+ * @returns {boolean} - Whether the move is valid
+ */
+function isValidUciMove(chess, moveUCI) {
+  if (!moveUCI || typeof moveUCI !== 'string' || moveUCI.length < 4) return false;
+  
+  const from = moveUCI.slice(0, 2);
+  const to = moveUCI.slice(2, 4);
+  const promotion = moveUCI.length > 4 ? moveUCI.slice(4) : undefined;
+  
+  // Check if squares are valid
+  if (!/^[a-h][1-8]$/.test(from) || !/^[a-h][1-8]$/.test(to)) return false;
+  
+  // Check if there's a piece at the 'from' square
+  const piece = chess.get(from);
+  if (!piece) return false;
+  
+  // Check if piece belongs to the player whose turn it is
+  if (piece.color !== chess.turn()) return false;
+  
+  // Check if the move is legal using chess.js
+  try {
+    const legalMoves = chess.moves({ verbose: true });
+    return legalMoves.some(move => move.from === from && move.to === to && 
+                           (!promotion || move.promotion === promotion));
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Safely apply a move to a Chess instance
+ * @param {Chess} chess - Chess.js instance
+ * @param {string} moveUCI - UCI move to apply
+ * @returns {object|null} - Move result or null if invalid
+ */
+function safeMove(chess, moveUCI) {
+  try {
+    if (!isValidUciMove(chess, moveUCI)) return null;
+    
+    const from = moveUCI.slice(0, 2);
+    const to = moveUCI.slice(2, 4);
+    const promotion = moveUCI.length > 4 ? moveUCI.slice(4) : undefined;
+    
+    return chess.move({ from, to, promotion });
+  } catch (e) {
+    console.warn(`Cannot make move ${moveUCI}:`, e);
+    return null;
+  }
+}
+
+/**
  * Process evaluated positions to generate a complete analysis report
- * Implementasi yang persis dengan versi TypeScript
+ * Implementasi yang persis dengan versi TypeScript dengan penambahan error handling
  * @param {Array} positions - Evaluated chess positions
  * @returns {object} - Full analysis report with classifications and accuracies
  */
@@ -23,19 +77,29 @@ export const generateAnalysisReport = (positions) => {
       let board = new Chess(position.fen);
       let lastPosition = positions[positionIndex - 1];
       
-      let topMove = lastPosition.topLines.find(line => line.id === 1);
-      let secondTopMove = lastPosition.topLines.find(line => line.id === 2);
-      if (!topMove) continue;
+      let topMove = lastPosition.topLines?.find(line => line.id === 1);
+      let secondTopMove = lastPosition.topLines?.find(line => line.id === 2);
+      
+      // Skip if missing essential data
+      if (!topMove || !lastPosition.topLines) {
+        position.classification = Classification.BOOK; // Default
+        continue;
+      }
       
       let previousEvaluation = topMove.evaluation;
-      let evaluation = position.topLines.find(line => line.id === 1)?.evaluation;
-      if (!previousEvaluation) continue;
+      let evaluation = position.topLines?.find(line => line.id === 1)?.evaluation;
+      
+      if (!previousEvaluation) {
+        position.classification = Classification.BOOK; // Default
+        continue;
+      }
       
       let moveColour = position.fen.includes(" b ") ? "white" : "black";
       
       // Jika tidak ada langkah legal di posisi ini (end game state)
       if (!evaluation) {
         evaluation = { type: board.isCheckmate() ? "mate" : "cp", value: 0 };
+        position.topLines = position.topLines || [];
         position.topLines.push({
           id: 1,
           depth: 0,
@@ -53,7 +117,7 @@ export const generateAnalysisReport = (positions) => {
       let cutoffEvalLoss = Infinity;
       let lastLineEvalLoss = Infinity;
       
-      let matchingTopLine = lastPosition.topLines.find(line => line.moveUCI === position.move.uci);
+      let matchingTopLine = lastPosition.topLines.find(line => line.moveUCI === position.move?.uci);
       if (matchingTopLine) {
         if (moveColour === "white") {
           lastLineEvalLoss = previousEvaluation.value - matchingTopLine.evaluation.value;
@@ -92,8 +156,8 @@ export const generateAnalysisReport = (positions) => {
         evaluation,
         lastPosition.topLines,
         position.topLines,
-        position.move.uci,
-        position.move.san,
+        position.move?.uci,
+        position.move?.san,
         lastPosition.classification,  // Tambahkan lastPositionClassification
         lastPosition.cutoffEvaluation // Tambahkan cutoffEvaluation
       );
@@ -107,7 +171,7 @@ export const generateAnalysisReport = (positions) => {
   // Generate opening names for named positions
   for (let position of positions) {
     try {
-      let opening = openings.find(opening => position.fen.includes(opening.fen));
+      let opening = openings.find(opening => position.fen?.includes(opening.fen));
       position.opening = opening?.name;
     } catch (error) {
       console.warn("Error identifying opening:", error);
@@ -141,16 +205,18 @@ export const generateAnalysisReport = (positions) => {
       if (line.evaluation?.type === "mate" && line.evaluation?.value === 0) continue;
       if (!line.moveUCI || line.moveSAN) continue;
       
-      let board = new Chess(position.fen);
-      
       try {
-        line.moveSAN = board.move({
-          from: line.moveUCI.slice(0, 2),
-          to: line.moveUCI.slice(2, 4),
-          promotion: line.moveUCI.slice(4) || undefined
-        }).san;
+        const board = new Chess(position.fen);
+        const moveResult = safeMove(board, line.moveUCI);
+        
+        if (moveResult) {
+          line.moveSAN = moveResult.san;
+        } else {
+          // If the move is invalid, just use the UCI notation
+          line.moveSAN = line.moveUCI;
+        }
       } catch (e) {
-        line.moveSAN = "";
+        line.moveSAN = line.moveUCI; // Fallback to UCI
       }
     }
   }
@@ -159,26 +225,52 @@ export const generateAnalysisReport = (positions) => {
   for (let position of positions) {
     if (!position.topLines) continue;
     
-    // Add potential future moves to engine lines
     position.topLines.forEach(line => {
       if (!line || !line.moveUCI) return;
       
       try {
+        // Only attempt to calculate future moves if not already present
+        if (line.futureMoves && line.futureMoves.length > 0) {
+          return;
+        }
+        
         // Setup a chess instance with the current position
         const chess = new Chess(position.fen);
         
+        // Check if the move is valid before proceeding
+        if (!isValidUciMove(chess, line.moveUCI)) {
+          console.warn(`Invalid move in engine line: ${line.moveUCI} for position ${position.fen}`);
+          line.futureMoves = [];
+          return;
+        }
+        
         // Make the initial engine suggestion move
-        const from = line.moveUCI.slice(0, 2);
-        const to = line.moveUCI.slice(2, 4);
-        const promotion = line.moveUCI.slice(4) || undefined;
+        const moveResult = safeMove(chess, line.moveUCI);
+        if (!moveResult) {
+          line.futureMoves = [];
+          return;
+        }
         
-        chess.move({ from, to, promotion });
-        
-        // Calculate potential next 4 moves (simplified approach)
+        // Now we have a valid position after the initial move
         const futureMoves = [];
         
+        // If we have futureMoveUCIs from Stockfish, use those
+        if (line.futureMoveUCIs && Array.isArray(line.futureMoveUCIs) && line.futureMoveUCIs.length > 0) {
+          for (const futureMoveUCI of line.futureMoveUCIs) {
+            const result = safeMove(chess, futureMoveUCI);
+            if (result) {
+              futureMoves.push(result.san);
+            } else {
+              break; // Stop if a move is invalid
+            }
+          }
+          
+          line.futureMoves = futureMoves;
+          return;
+        }
+        
+        // If no futureMoveUCIs, generate simple moves using heuristics
         // Make 4 moves based on simple heuristics - this is a very simplified approach
-        // In a real implementation, you'd use the engine to calculate the line
         for (let i = 0; i < 4; i++) {
           if (chess.isGameOver()) break;
           
@@ -206,7 +298,7 @@ export const generateAnalysisReport = (positions) => {
             }
             
             // Check priority
-            if (move.flags.includes('c')) {
+            if (move.flags.includes('ch')) {
               score += 4;
             }
             
@@ -215,6 +307,9 @@ export const generateAnalysisReport = (positions) => {
           
           // Sort by score and take best move
           scoredMoves.sort((a, b) => b.score - a.score);
+          
+          if (scoredMoves.length === 0) break;
+          
           const bestMove = scoredMoves[0].move;
           
           // Apply the move

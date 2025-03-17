@@ -274,161 +274,105 @@ const useAnalysis = () => {
   };
 
   /**
-   * Evaluate positions using Stockfish
-   */
-  const evaluateWithStockfish = async (positions, depth, progressCallback) => {
-    const evaluatedPositions = [...positions];
-    const total = positions.length;
-    let completedCount = 0;
-    const maxWorkers = 8; // Reduced from 4 to prevent resource overload
-    let activeWorkers = 0;
-    
-    return new Promise((resolve) => {
-      const processNextPosition = async (index) => {
-        if (index >= total) {
-          if (activeWorkers === 0) {
-            resolve(evaluatedPositions);
-          }
-          return;
+ * Evaluate positions using Stockfish with improved PV line extraction
+ * @param {Array} positions - Array of positions to evaluate
+ * @param {number} depth - Evaluation depth
+ * @param {Function} progressCallback - Callback for progress updates
+ * @returns {Promise<Array>} - Array of evaluated positions
+ */
+const evaluateWithStockfish = async (positions, depth, progressCallback) => {
+  const evaluatedPositions = [...positions];
+  const total = positions.length;
+  let completedCount = 0;
+  const maxWorkers =10; // Reduced from 4 to prevent resource overload
+  let activeWorkers = 0;
+  
+  // Import the processEngineLines helper
+  const { processEngineLines } = await import('../utils/analysisHelpers');
+  const Stockfish = (await import('../services/stockfishService')).default;
+  
+  return new Promise((resolve) => {
+    const processNextPosition = async (index) => {
+      if (index >= total) {
+        if (activeWorkers === 0) {
+          resolve(evaluatedPositions);
         }
-        
-        // Skip positions with missing move data (except first position)
-        if (!positions[index].move && index > 0) {
-          console.warn(`Position at index ${index} is missing move data, skipping...`);
-          completedCount++;
-          progressCallback((completedCount / total) * 100);
-          activeWorkers--;
-          processNextPosition(index + maxWorkers);
-          return;
-        }
-        
-        activeWorkers++;
-        const position = positions[index];
-        
-        try {
-          console.log(`Analyzing position ${index} with Stockfish, target depth ${depth}`);
-          
-          // Skip cloud evaluation - it was causing 404 errors
-          // Go directly to local Stockfish evaluation
-          const engine = new Stockfish();
-          const lines = await engine.evaluate(position.fen, depth);
-          
-          // Generate future moves for each suggested line
-          for (const line of lines) {
-            if (!line.moveUCI) continue;
-            
-            try {
-              const chess = new Chess(position.fen);
-              const futureMoves = [];
-              
-              // Make the initial move
-              const from = line.moveUCI.slice(0, 2);
-              const to = line.moveUCI.slice(2, 4);
-              const promotion = line.moveUCI.slice(4) || undefined;
-              
-              chess.move({ from, to, promotion });
-              
-              // Find the best moves for the next few positions
-              for (let i = 0; i < 4; i++) {
-                if (chess.isGameOver()) break;
-                
-                const possibleMoves = chess.moves({ verbose: true });
-                if (possibleMoves.length === 0) break;
-                
-                // Score moves based on simple heuristics
-                const scoredMoves = possibleMoves.map(move => {
-                  let score = 0;
-                  
-                  // Center control
-                  if ((move.to.includes('d') || move.to.includes('e')) && 
-                      (move.to.includes('4') || move.to.includes('5'))) {
-                    score += 3;
-                  }
-                  
-                  // Development priority
-                  if (move.piece !== 'p' && ['a1','b1','c1','f1','g1','h1','a8','b8','c8','f8','g8','h8'].includes(move.from)) {
-                    score += 2;
-                  }
-                  
-                  // Capture priority
-                  if (move.flags.includes('c')) {
-                    score += 5;
-                  }
-                  
-                  // Check priority
-                  if (move.flags.includes('ch')) {
-                    score += 4;
-                  }
-                  
-                  return { move, score };
-                });
-                
-                // Sort by score and take best move
-                scoredMoves.sort((a, b) => b.score - a.score);
-                const bestMove = scoredMoves[0].move;
-                
-                // Apply move
-                chess.move(bestMove);
-                futureMoves.push(bestMove.san);
-              }
-              
-              // Add future moves to the line
-              line.futureMoves = futureMoves;
-            } catch (error) {
-              console.warn("Could not calculate future moves for line:", error);
-              line.futureMoves = [];
-            }
-          }
-          
-          evaluatedPositions[index] = {
-            ...position,
-            topLines: lines,
-            worker: "stockfish"
-          };
-          
-          completedCount++;
-          progressCallback((completedCount / total) * 100);
-        } catch (error) {
-          console.error(`Error evaluating position ${index}:`, error);
-          // If evaluation fails, provide a basic evaluation
-          if (!evaluatedPositions[index].topLines) {
-            evaluatedPositions[index] = {
-              ...position,
-              topLines: [
-                {
-                  id: 1,
-                  depth: depth / 2, // Reduce depth for fallback
-                  moveUCI: position.move?.uci || "e2e4",
-                  evaluation: { type: "cp", value: 0 },
-                  futureMoves: ["e7e5", "Ng1f3", "Nb8c6", "Bf1c4"]
-                },
-                {
-                  id: 2,
-                  depth: depth / 2,
-                  moveUCI: "d2d4",
-                  evaluation: { type: "cp", value: -10 },
-                  futureMoves: ["d7d5", "Ng1f3", "Nb8c6", "e2e3"]
-                }
-              ],
-              worker: "fallback"
-            };
-          }
-          
-          completedCount++;
-          progressCallback((completedCount / total) * 100);
-        }
-        
+        return;
+      }
+      
+      // Skip positions with missing move data (except first position)
+      if (!positions[index].move && index > 0) {
+        console.warn(`Position at index ${index} is missing move data, skipping...`);
+        completedCount++;
+        progressCallback((completedCount / total) * 100);
         activeWorkers--;
         processNextPosition(index + maxWorkers);
-      };
-      
-      // Start initial worker threads
-      for (let i = 0; i < Math.min(maxWorkers, positions.length); i++) {
-        processNextPosition(i);
+        return;
       }
-    });
-  };
-  
+      
+      activeWorkers++;
+      const position = positions[index];
+      
+      try {
+        console.log(`Analyzing position ${index} with Stockfish, target depth ${depth}`);
+        
+        // Create Stockfish engine instance
+        const engine = new Stockfish();
+        let lines = await engine.evaluate(position.fen, depth);
+        
+        // Process the engine lines to convert UCI to SAN and prepare future moves
+        lines = processEngineLines(position.fen, lines);
+        
+        evaluatedPositions[index] = {
+          ...position,
+          topLines: lines,
+          worker: "stockfish"
+        };
+        
+        completedCount++;
+        progressCallback((completedCount / total) * 100);
+      } catch (error) {
+        console.error(`Error evaluating position ${index}:`, error);
+        // If evaluation fails, provide a basic evaluation
+        if (!evaluatedPositions[index].topLines) {
+          evaluatedPositions[index] = {
+            ...position,
+            topLines: [
+              {
+                id: 1,
+                depth: depth / 2, // Reduce depth for fallback
+                moveUCI: position.move?.uci || "e2e4",
+                moveSAN: position.move?.san || "e4",
+                evaluation: { type: "cp", value: 0 },
+                futureMoves: []
+              },
+              {
+                id: 2,
+                depth: depth / 2,
+                moveUCI: "d2d4",
+                moveSAN: "d4",
+                evaluation: { type: "cp", value: -10 },
+                futureMoves: []
+              }
+            ],
+            worker: "fallback"
+          };
+        }
+        
+        completedCount++;
+        progressCallback((completedCount / total) * 100);
+      }
+      
+      activeWorkers--;
+      processNextPosition(index + maxWorkers);
+    };
+    
+    // Start initial worker threads
+    for (let i = 0; i < Math.min(maxWorkers, positions.length); i++) {
+      processNextPosition(i);
+    }
+  });
+};
   /**
    * Start the analysis process with a PGN
    * @param {string} pgn - The PGN to analyze

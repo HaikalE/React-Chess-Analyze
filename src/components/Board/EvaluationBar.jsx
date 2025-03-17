@@ -17,12 +17,21 @@ const formatEval = (evaluation) => {
 };
 
 const EvaluationBar = () => {
-  const { currentMoveIndex, reportResults } = useGameContext();
+  const { 
+    currentMoveIndex, 
+    reportResults, 
+    isViewingEngineLine,  // Using this to detect if we're viewing an engine line
+    activeEngineLine,     // This contains the selected engine line
+    engineMoveIndex,      // Current position in the engine line
+    displayPosition       // The position currently displayed (might be from engine line)
+  } = useGameContext();
+  
   const [whiteHeight, setWhiteHeight] = useState(50);
   const [blackHeight, setBlackHeight] = useState(50);
   const [evalDisplay, setEvalDisplay] = useState("0.0");
   const [showWhiteText, setShowWhiteText] = useState(true);
   const [showBlackText, setShowBlackText] = useState(false);
+  const [originalEval, setOriginalEval] = useState(null); // Store original evaluation
   
   // Reference to the chessboard to match its height
   const boardRef = useRef(null);
@@ -36,18 +45,70 @@ const EvaluationBar = () => {
     }
   }, []);
   
+  // Store the original evaluation when entering engine line view
   useEffect(() => {
-    // Get the current position from reportResults instead of currentPosition
-    const position = reportResults?.positions?.[currentMoveIndex];
-    
-    // Safely get evaluation from current position in reportResults
+    // When we start viewing an engine line, save the current evaluation
+    if (isViewingEngineLine && !originalEval) {
+      const position = reportResults?.positions?.[currentMoveIndex];
+      
+      try {
+        if (position?.topLines?.length > 0) {
+          const topLine = position.topLines.find(line => line.id === 1);
+          if (topLine?.evaluation) {
+            setOriginalEval(topLine.evaluation);
+          }
+        }
+      } catch (error) {
+        console.error("Error saving original evaluation:", error);
+      }
+    } 
+    // When we stop viewing an engine line, clear the saved evaluation
+    else if (!isViewingEngineLine) {
+      setOriginalEval(null);
+    }
+  }, [isViewingEngineLine, reportResults, currentMoveIndex, originalEval]);
+  
+  useEffect(() => {
     let evaluation = { type: "cp", value: 0 };
     
     try {
-      if (position?.topLines?.length > 0) {
-        const topLine = position.topLines.find(line => line.id === 1);
-        if (topLine?.evaluation) {
-          evaluation = topLine.evaluation;
+      // If viewing engine line, use its evaluation
+      if (isViewingEngineLine && activeEngineLine?.evaluation) {
+        evaluation = activeEngineLine.evaluation;
+        
+        // Apply a small delta based on engineMoveIndex to show progression
+        // This only works for cp evaluations, not mate
+        if (evaluation.type === "cp" && activeEngineLine.futureMoves && engineMoveIndex > 0) {
+          // Small incremental change based on move index
+          // We'll adjust by 5cp per move as a simple approximation
+          const moveEffect = engineMoveIndex * 5;
+          
+          // Evaluation improves for the side to move in the original position
+          const originalPosition = reportResults?.positions?.[currentMoveIndex];
+          const isWhiteToMove = originalPosition?.fen.includes(" w ");
+          
+          if (isWhiteToMove) {
+            evaluation = {
+              type: "cp",
+              value: evaluation.value + moveEffect
+            };
+          } else {
+            evaluation = {
+              type: "cp", 
+              value: evaluation.value - moveEffect
+            };
+          }
+        }
+      } 
+      // Otherwise use normal position evaluation
+      else {
+        const position = reportResults?.positions?.[currentMoveIndex];
+        
+        if (position?.topLines?.length > 0) {
+          const topLine = position.topLines.find(line => line.id === 1);
+          if (topLine?.evaluation) {
+            evaluation = topLine.evaluation;
+          }
         }
       }
     } catch (error) {
@@ -61,40 +122,58 @@ const EvaluationBar = () => {
     let whitePercent = 50; // Default to equal position
     
     if (evaluation.type === "mate") {
-      // Handle checkmate
+      // Handle checkmate situations - more extreme values for clear visualization
       if (evaluation.value === 0) {
-        whitePercent = 5; // Default to black winning in checkmate
-      } else if (evaluation.value > 0) {
-        whitePercent = 95; // White is winning with mate
-      } else {
-        whitePercent = 5; // Black is winning with mate
+        // If mate value is 0, it means immediate checkmate
+        // Check who's to move to determine the winner
+        const position = isViewingEngineLine 
+          ? displayPosition 
+          : reportResults?.positions?.[currentMoveIndex];
+        
+        const isWhiteToMove = position?.fen?.includes(" w ");
+        
+        // If white to move and mate=0, black has won (white is mated)
+        whitePercent = isWhiteToMove ? 1 : 99;
+      } 
+      else if (evaluation.value > 0) {
+        // White delivers mate - show almost entirely white
+        // For mate in 1, show 99%
+        // For longer mates, still show very dominant but slightly less
+        whitePercent = Math.min(99, 99 - (Math.abs(evaluation.value) - 1));
+      } 
+      else {
+        // Black delivers mate - show almost entirely black
+        // For mate in 1, show 1%
+        // For longer mates, still show very minimal but slightly more
+        whitePercent = Math.max(1, 1 + (Math.abs(evaluation.value) - 1));
       }
-    } else {
+    } 
+    else {
       // Handle centipawn evaluation
       const cpValue = evaluation.value;
       const maxEval = 1000; // Cap at +/- 10 pawns
       
       // Scale from 10% to 90% based on evaluation
       whitePercent = 50 + (Math.min(Math.abs(cpValue), maxEval) / maxEval * 45) * Math.sign(cpValue);
+      
+      // For very large evaluations (>8 pawns), show more extreme bar
+      if (Math.abs(cpValue) > 800) {
+        whitePercent = cpValue > 0 ? 95 : 5;
+      }
     }
     
-    // Clamp values to ensure both colors are always visible
-    whitePercent = Math.max(5, Math.min(95, whitePercent));
+    // Clamp values to ensure both colors are always visible, at least a tiny bit
+    whitePercent = Math.max(1, Math.min(99, whitePercent));
     
     // Set state values
     setWhiteHeight(whitePercent);
     setBlackHeight(100 - whitePercent);
     
     // Determine which side should show the text
-    if (evaluation.type === "mate" && evaluation.value === 0) {
-      setShowWhiteText(false);
-      setShowBlackText(false);
-    } else {
-      const whiteWinning = evaluation.value >= 0;
-      setShowWhiteText(whiteWinning);
-      setShowBlackText(!whiteWinning);
-    }
-  }, [currentMoveIndex, reportResults]);
+    const whiteWinning = whitePercent > 50;
+    setShowWhiteText(whiteWinning);
+    setShowBlackText(!whiteWinning);
+  }, [currentMoveIndex, reportResults, isViewingEngineLine, activeEngineLine, engineMoveIndex, displayPosition]);
   
   // Find the player info bars to get their height
   const getPlayerBarsHeight = () => {
@@ -122,13 +201,13 @@ const EvaluationBar = () => {
   
   return (
     <div 
-      className="w-6 mr-2 rounded-md overflow-hidden shadow-inner flex flex-col border border-secondary-600" 
+      className="w-6 mr-2 rounded-md overflow-hidden shadow-inner flex flex-col border border-secondary-600 relative" 
       style={{ height: `${barHeight}px` }}
     >
       {/* Black section */}
       <div 
         style={{ height: `${blackHeight}%` }} 
-        className="w-full bg-secondary-900 transition-[height] duration-300"
+        className="w-full bg-secondary-900 transition-[height] duration-300 eval-bar-transition"
       >
         {showBlackText && (
           <div className="w-full text-center text-xs font-mono text-white font-semibold pt-1">
@@ -140,7 +219,7 @@ const EvaluationBar = () => {
       {/* White section */}
       <div
         style={{ height: `${whiteHeight}%` }}
-        className="w-full bg-white transition-[height] duration-300 flex items-end justify-center"
+        className="w-full bg-white transition-[height] duration-300 eval-bar-transition flex items-end justify-center"
       >
         {showWhiteText && (
           <div className="w-full text-center text-xs font-mono text-secondary-900 font-semibold pb-1">
@@ -148,6 +227,11 @@ const EvaluationBar = () => {
           </div>
         )}
       </div>
+      
+      {/* Engine line indicator that shows we're viewing a variation */}
+      {isViewingEngineLine && (
+        <div className="absolute left-0 top-0 h-full w-1 bg-primary-500"></div>
+      )}
     </div>
   );
 };
