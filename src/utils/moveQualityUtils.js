@@ -47,6 +47,7 @@ export function getEvaluationLossThreshold(classif, prevEval) {
 }
 
 // Fungsi utama untuk menentukan kualitas langkah yang persis dengan versi TypeScript
+// Fix for the determineMoveQuality function in moveQualityUtils.js
 export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTopMoves, topMoves, moveUci, moveSan, lastPositionClassification, cutoffEvaluation) {
   try {
     let board = new Chess(fen);
@@ -60,24 +61,38 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
     const previousEvaluation = topMove.evaluation;
     if (!previousEvaluation) return Classification.BOOK;
     
-    // Jika tidak ada evaluasi untuk posisi saat ini (mungkin end of game)
+    // Special case for checkmate: Check for #, ++ or 'mate' in the move SAN
+    if (moveSan && (moveSan.includes('#') || moveSan.includes('++') || moveSan.includes('mate'))) {
+      if (board.isCheckmate()) {
+        return Classification.BEST;  // Checkmate is always the best move
+      }
+    }
+    
+    // If no evaluation for current position (maybe end of game)
     if (!evaluation) {
       evaluation = { type: board.isCheckmate() ? "mate" : "cp", value: 0 };
     }
     
+    // Special case for immediate checkmate (always best)
+    if (evaluation.type === "mate" && evaluation.value === 0) {
+      if (board.isCheckmate()) {
+        return Classification.BEST;
+      }
+    }
+    
     const moveColour = fen.includes(" b ") ? "white" : "black";
     
-    // Hitung absolute evaluation dari perspektif pemain yang bergerak
+    // Calculate absolute evaluation from the perspective of the moving player
     const absoluteEvaluation = evaluation.value * (moveColour === "white" ? 1 : -1);
     const previousAbsoluteEvaluation = previousEvaluation.value * (moveColour === "white" ? 1 : -1);
     const absoluteSecondEvaluation = (secondTopMove?.evaluation?.value || 0) * (moveColour === "white" ? 1 : -1);
     
-    // Hitung evaluation loss - persis dengan versi TypeScript
+    // Calculate evaluation loss - exact same as before
     let evalLoss = Infinity;
     let cutoffEvalLoss = Infinity;
     let lastLineEvalLoss = Infinity;
     
-    // Cari evaluasi langkah dari top lines sebelumnya
+    // Find move evaluation from previous top lines
     const matchingTopLine = prevTopMoves.find(line => line.moveUCI === moveUci);
     if (matchingTopLine) {
       if (moveColour === "white") {
@@ -87,7 +102,7 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
       }
     }
     
-    // Gunakan cutoff evaluation jika tersedia
+    // Use cutoff evaluation if available
     if (cutoffEvaluation) {
       if (moveColour === "white") {
         cutoffEvalLoss = cutoffEvaluation.value - evaluation.value;
@@ -96,31 +111,31 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
       }
     }
     
-    // Hitung evaluasi loss standar
+    // Calculate standard evaluation loss
     if (moveColour === "white") {
       evalLoss = previousEvaluation.value - evaluation.value;
     } else {
       evalLoss = evaluation.value - previousEvaluation.value;
     }
     
-    // Ambil nilai minimum dari semua metrik loss
+    // Take minimum value of all loss metrics
     evalLoss = Math.min(evalLoss, cutoffEvalLoss, lastLineEvalLoss);
     
-    // Jika ini satu-satunya langkah yang mungkin
+    // If this is the only possible move
     if (!secondTopMove) {
       return Classification.FORCED;
     }
     
     const noMate = previousEvaluation.type === "cp" && evaluation.type === "cp";
     
-    // Jika langkah ini adalah rekomendasi terbaik engine
+    // If this move is the engine's top recommendation
     if (topMove.moveUCI === moveUci) {
-      // Default langkah terbaik
+      // Default best move
       let classification = Classification.BEST;
       
-      // Jika versi final adalah BEST, cek apakah ini langkah BRILLIANT
+      // If final version is BEST, check if it's a BRILLIANT move
       if (classification === Classification.BEST) {
-        // Test untuk langkah brilliant - harus menguntungkan pemain yang melakukan brilliant
+        // Test for brilliant move - must benefit the player making brilliant
         const winningAnyways = (
           absoluteSecondEvaluation >= 700 && topMove.evaluation.type === "cp" ||
           (topMove.evaluation.type === "mate" && secondTopMove?.evaluation?.type === "mate")
@@ -128,11 +143,11 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
         
         if (absoluteEvaluation >= 0 && !winningAnyways && !moveSan.includes("=")) {
           if (!lastBoard.isCheck()) {
-            // Get square dari buah yang ditangkap atau tujuan langkah
+            // Rest of the brilliant move detection logic
             const toSquare = moveUci.slice(2, 4);
-            const lastPiece = lastBoard.get(toSquare) || { type: "m" }; // m untuk square kosong
+            const lastPiece = lastBoard.get(toSquare) || { type: "m" }; // m for empty square
             
-            // Cari buah yang mungkin dikorbankan
+            // Find potential sacrificed pieces
             let sacrificedPieces = [];
             
             for (let row of board.board()) {
@@ -141,23 +156,22 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
                 if (piece.color !== moveColour.charAt(0)) continue;
                 if (piece.type === "k" || piece.type === "p") continue;
                 
-                // Jika buah yang baru saja ditangkap nilainya lebih tinggi dari kandidat
-                // buah yang hanging, skip (ada pertukaran yang lebih bagus)
+                // If the newly captured piece is higher value than the hanging piece candidate, skip
                 if (pieceValues[lastPiece.type] >= pieceValues[piece.type]) {
                   continue;
                 }
                 
-                // Jika buah hanging, tambahkan ke daftar buah yang dikorbankan
+                // If piece is hanging, add to sacrificed pieces
                 if (isPieceHanging(lastFen, fen, piece.square)) {
                   sacrificedPieces.push(piece);
-                  classification = Classification.BRILLIANT; // Set brilliant untuk sekarang
+                  classification = Classification.BRILLIANT; // Set brilliant for now
                 }
               }
             }
             
-            // Jika ada buah yang dikorbankan, analisis lebih lanjut
+            // If pieces are sacrificed, further analysis
             if (sacrificedPieces.length > 0) {
-              // Cek apakah pengorbanan layak
+              // Rest of the brilliancy check logic
               let anyPieceViablyCapturable = false;
               let captureTestBoard = new Chess(fen);
               
@@ -173,7 +187,7 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
                         promotion: promotion
                       });
                       
-                      // Jika menangkap buah dengan attacker menyebabkan buah lawan nilai lebih besar jadi hanging
+                      // If capturing with attacker causes higher value piece to be hanging
                       let attackerPinned = false;
                       
                       for (let row of captureTestBoard.board()) {
@@ -193,8 +207,8 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
                         if (attackerPinned) break;
                       }
                       
-                      // Jika buah yang dikorbankan rook atau lebih, brilian tanpa syarat
-                      // Jika kurang dari rook, brilian hanya jika tidak menyebabkan mate dalam 1
+                      // If sacrificed piece is rook or higher, brilliant without condition
+                      // If less than rook, brilliant only if not causing mate in 1
                       if (pieceValues[piece.type] >= 5) {
                         if (!attackerPinned) {
                           anyPieceViablyCapturable = true;
@@ -218,7 +232,7 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
                 if (anyPieceViablyCapturable) break;
               }
               
-              // Jika tidak ada buah yang bisa ditangkap dengan aman, bukan langkah brilian
+              // If no piece can be safely captured, not a brilliant move
               if (!anyPieceViablyCapturable) {
                 classification = Classification.BEST;
               }
@@ -226,7 +240,7 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
           }
         }
         
-        // Test untuk langkah hebat (GREAT)
+        // Test for GREAT move
         try {
           if (
             noMate &&
@@ -242,9 +256,14 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
       
       return classification;
     } 
-    // Langkah bukan yang terbaik
+    // Move is not the best
     else {
-      // Jika tidak ada mate sebelumnya dan sekarang
+      // If this is a checkmate move, it should still be classified as BEST
+      if (board.isCheckmate() || (evaluation.type === "mate" && evaluation.value === 0)) {
+        return Classification.BEST;
+      }
+      
+      // If no mate before and now
       if (noMate) {
         for (let classif of centipawnClassifications) {
           if (evalLoss <= getEvaluationLossThreshold(classif, previousEvaluation.value)) {
@@ -253,20 +272,21 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
         }
       }
       
-      // Jika tidak ada mate sebelumnya tapi sekarang ada mate
+      // If no mate before but now there is
       else if (previousEvaluation.type === "cp" && evaluation.type === "mate") {
-        if (absoluteEvaluation > 0) {
+        // If it's a positive mate (we're winning)
+        if (evaluation.value > 0) {
           return Classification.BEST;
-        } else if (absoluteEvaluation >= -2) {
+        } else if (evaluation.value >= -2) {
           return Classification.BLUNDER;
-        } else if (absoluteEvaluation >= -5) {
+        } else if (evaluation.value >= -5) {
           return Classification.MISTAKE;
         } else {
           return Classification.INACCURACY;
         }
       }
       
-      // Jika ada mate sebelumnya tapi sekarang tidak ada
+      // If mate before but not now
       else if (previousEvaluation.type === "mate" && evaluation.type === "cp") {
         if (previousAbsoluteEvaluation < 0 && absoluteEvaluation < 0) {
           return Classification.BEST;
@@ -281,7 +301,7 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
         }
       }
       
-      // Jika mate sebelumnya dan sekarang masih ada mate
+      // If mate before and still mate now
       else if (previousEvaluation.type === "mate" && evaluation.type === "mate") {
         if (previousAbsoluteEvaluation > 0) {
           if (absoluteEvaluation <= -4) {
@@ -305,15 +325,15 @@ export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTop
       }
     }
     
-    // Langkah default jika belum terkategori
+    // Default move if not yet categorized
     let classification = Classification.BLUNDER;
     
-    // Jika masih menang telak, jangan beri blunder
+    // If still winning by a lot, don't give blunder
     if (classification === Classification.BLUNDER && absoluteEvaluation >= 600) {
       classification = Classification.GOOD;
     }
     
-    // Jika sudah kalah telak, jangan beri blunder
+    // If already losing badly, don't give blunder
     if (
       classification === Classification.BLUNDER &&
       previousAbsoluteEvaluation <= -600 &&

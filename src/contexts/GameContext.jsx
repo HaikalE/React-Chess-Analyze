@@ -143,50 +143,78 @@ export const GameProvider = ({ children }) => {
   };
   
   // Get the position to display based on whether we're showing an engine line
-  const getDisplayPosition = () => {
-    if (!state.activeEngineLine) {
-      return currentPosition;
+  // Fix for the getDisplayPosition function in GameContext.jsx
+const getDisplayPosition = () => {
+  if (!state.activeEngineLine) {
+    return currentPosition;
+  }
+  
+  try {
+    // Start with the current game position
+    const basePosition = currentPosition;
+    if (!basePosition) return null;
+    
+    // Create a chess instance to apply engine moves
+    const chess = new Chess(basePosition.fen);
+    
+    // Apply the initial engine move
+    const line = state.activeEngineLine;
+    if (line.moveUCI) {
+      const from = line.moveUCI.slice(0, 2);
+      const to = line.moveUCI.slice(2, 4);
+      const promotion = line.moveUCI.length > 4 ? line.moveUCI.slice(4) : undefined;
+      
+      try {
+        chess.move({ from, to, promotion });
+      } catch (moveError) {
+        console.warn("Failed to apply initial engine move:", moveError);
+        return currentPosition;
+      }
     }
     
-    try {
-      // Start with the current game position
-      const basePosition = currentPosition;
-      if (!basePosition) return null;
-      
-      // Create a chess instance to apply engine moves
-      const chess = new Chess(basePosition.fen);
-      
-      // Apply the initial engine move
-      const line = state.activeEngineLine;
-      if (line.moveUCI) {
-        const from = line.moveUCI.slice(0, 2);
-        const to = line.moveUCI.slice(2, 4);
-        const promotion = line.moveUCI.slice(4) || undefined;
-        
-        chess.move({ from, to, promotion });
-      }
-      
-      // Apply future moves up to engineMoveIndex
-      if (line.futureMoves) {
-        for (let i = 0; i < state.engineMoveIndex && i < line.futureMoves.length; i++) {
+    // Apply future moves up to engineMoveIndex
+    if (line.futureMoves && state.engineMoveIndex > 0) {
+      for (let i = 0; i < state.engineMoveIndex && i < line.futureMoves.length; i++) {
+        try {
+          // First try applying the move directly (SAN format)
           chess.move(line.futureMoves[i]);
+        } catch (sanMoveError) {
+          // If that fails and we have UCI format, try that
+          if (line.futureMoveUCIs && line.futureMoveUCIs[i]) {
+            try {
+              const futureMoveUCI = line.futureMoveUCIs[i];
+              const from = futureMoveUCI.slice(0, 2);
+              const to = futureMoveUCI.slice(2, 4);
+              const promotion = futureMoveUCI.length > 4 ? futureMoveUCI.slice(4) : undefined;
+              
+              chess.move({ from, to, promotion });
+            } catch (uciMoveError) {
+              console.warn(`Failed to apply future move at index ${i}:`, uciMoveError);
+              // Stop applying moves if one fails
+              break;
+            }
+          } else {
+            console.warn(`Failed to apply future move at index ${i}:`, sanMoveError);
+            // Stop applying moves if one fails
+            break;
+          }
         }
       }
-      
-      // Return a position object with the calculated FEN
-      return {
-        ...basePosition,
-        fen: chess.fen(),
-        isEngineLine: true,
-        activeVariation: line.id,
-        variationDepth: state.engineMoveIndex
-      };
-    } catch (error) {
-      console.error("Error calculating engine line position:", error);
-      return currentPosition;
     }
-  };
-  
+    
+    // Return a position object with the calculated FEN
+    return {
+      ...basePosition,
+      fen: chess.fen(),
+      isEngineLine: true,
+      activeVariation: line.id,
+      variationDepth: state.engineMoveIndex
+    };
+  } catch (error) {
+    console.error("Error calculating engine line position:", error);
+    return currentPosition;
+  }
+}
   const displayPosition = getDisplayPosition();
   
   // Expose state and dispatch functions
