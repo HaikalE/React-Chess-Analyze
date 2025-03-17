@@ -3,19 +3,23 @@
  */
 export class Stockfish {
   constructor() {
-    // Use local Stockfish files instead of CDN
+    // Check for WebAssembly support and use the appropriate Stockfish version
     try {
-      this.worker = new Worker('/scripts/stockfish.js');
+      this.worker = new Worker(
+        typeof WebAssembly == "object"
+          ? "/scripts/stockfish-nnue-16.js"
+          : "/scripts/stockfish.js"
+      );
     } catch (e) {
       console.error("Error loading primary Stockfish worker:", e);
       // Fallback to an alternate local path if the first one fails
       try {
-        this.worker = new Worker('./scripts/stockfish.js');
+        this.worker = new Worker("./scripts/stockfish.js");
       } catch (e2) {
         console.error("Error loading secondary Stockfish worker:", e2);
         // Final fallback - try project-relative path
         try {
-          this.worker = new Worker('../scripts/stockfish.js');
+          this.worker = new Worker("../scripts/stockfish.js");
         } catch (e3) {
           console.error("All Stockfish loading attempts failed:", e3);
         }
@@ -157,13 +161,25 @@ export class Stockfish {
         // Terminate the current Stockfish
         this.worker.terminate();
         
-        // Provide a basic response as fallback
-        resolve([{
-          id: 1,
-          depth: 10,
-          evaluation: { type: "cp", value: 0 },
-          moveUCI: "e2e4" // Default first move
-        }]);
+        // Create a fallback Stockfish worker with the basic version
+        try {
+          this.worker = new Worker("/scripts/stockfish.js");
+          this.worker.postMessage("uci");
+          this.worker.postMessage("setoption name MultiPV value 2");
+          
+          // Retry the evaluation with the fallback engine
+          this.evaluate(fen, targetDepth, verbose).then(resolve);
+        } catch (fallbackError) {
+          console.error("Fallback Stockfish also failed:", fallbackError);
+          
+          // Provide a basic response if all else fails
+          resolve([{
+            id: 1,
+            depth: 10,
+            evaluation: { type: "cp", value: 0 },
+            moveUCI: "e2e4" // Default first move
+          }]);
+        }
       });
     });
   }

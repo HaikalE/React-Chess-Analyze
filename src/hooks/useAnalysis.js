@@ -280,7 +280,7 @@ const useAnalysis = () => {
     const evaluatedPositions = [...positions];
     const total = positions.length;
     let completedCount = 0;
-    const maxWorkers = 2; // Reduced from 4 to prevent resource overload
+    const maxWorkers = 8; // Reduced from 4 to prevent resource overload
     let activeWorkers = 0;
     
     return new Promise((resolve) => {
