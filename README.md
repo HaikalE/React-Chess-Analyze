@@ -1,7 +1,7 @@
 # ChessAnalyzer
 
 <p align="center">
-  <img src="public/logo192.png" alt="ChessAnalyzer Logo" width="120"/>
+  <img src="public/CHESS ANALYZER (3).png" alt="ChessAnalyzer Logo" width="120"/>
 </p>
 
 <p align="center">
