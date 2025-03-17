@@ -1,74 +1,182 @@
-<<<<<<< HEAD
-# React-Chess-Analyze
-=======
-# Getting Started with Create React App
+# ChessAnalyzer
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+<p align="center">
+  <img src="public/logo192.png" alt="ChessAnalyzer Logo" width="120"/>
+</p>
 
-## Available Scripts
+<p align="center">
+  Advanced chess game analysis platform powered by Stockfish
+</p>
 
-In the project directory, you can run:
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#demo">Demo</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#technologies">Technologies</a> •
+  <a href="#screenshot">Screenshots</a> •
+  <a href="#contributing">Contributing</a> •
+  <a href="#license">License</a>
+</p>
 
-### `npm start`
+ChessAnalyzer is a sophisticated web application that provides professional-level chess game analysis. The platform enables chess players to analyze their games through Stockfish engine evaluation, offering move classification, strategic insights, and improvement suggestions.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Features
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- **Interactive Chess Board**
+  - Visual arrows showing engine recommendations
+  - Move navigation and board flip options
+  - Sound effects for moves, captures, and other chess events
 
-### `npm test`
+- **Deep Engine Analysis**
+  - Stockfish integration with multiple evaluation lines
+  - Customizable analysis depth (14-20 ply)
+  - Visual evaluation bar showing advantage
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **Smart Move Classification**
+  - AI-powered move quality ratings: Brilliant, Great, Best, Excellent, Good, Inaccuracy, Mistake, Blunder
+  - Detection of book moves and forced sequences
+  - Opening recognition
 
-### `npm run build`
+- **Comprehensive Statistics**
+  - Accuracy percentage for both players
+  - Game flow visualization with evaluation graph
+  - Summary of move classifications
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- **Flexible Import Options**
+  - Direct PGN text import
+  - Chess.com account integration
+  - Lichess.org account integration
+  - Game browser for selecting recent games
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- **Analysis Management**
+  - Save analysis results as JSON
+  - Client-side processing for privacy protection
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Demo
 
-### `npm run eject`
+Visit [chessanalyzer.example.com](https://chessanalyzer.example.com) to see the application in action.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Installation
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Prerequisites
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- Node.js 18.x or higher
+- npm 9.x or higher
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Setup
 
-## Learn More
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/chess-analysis-app.git
+   cd chess-analysis-app
+   ```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+3. Create Stockfish directory:
+   ```bash
+   mkdir -p public/scripts
+   ```
 
-### Code Splitting
+4. Download Stockfish WASM:
+   - Visit [Stockfish JS](https://github.com/nmrugg/stockfish.js/releases)
+   - Download the latest stockfish.js WASM build
+   - Place stockfish.js in the public/scripts directory
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+5. Start the development server:
+   ```bash
+   npm start
+   ```
 
-### Analyzing the Bundle Size
+## Usage
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Analyzing a game
 
-### Making a Progressive Web App
+1. **Import a game**:
+   - Paste PGN text directly in the analysis form, or
+   - Connect to Chess.com or Lichess.org and select a game
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+2. **Configure analysis settings**:
+   - Select depth (higher values provide more accurate analysis but take longer)
+   - Click "Analyze Game" to begin the analysis process
 
-### Advanced Configuration
+3. **Navigate through the game**:
+   - Use the arrow controls to step through moves
+   - View engine evaluations and suggested alternatives 
+   - See move classifications and accuracy statistics
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+4. **Save analysis results**:
+   - Click "Save Report" to download the analysis as a JSON file
+   - This file can be reloaded later for continued analysis
 
-### Deployment
+### Keyboard shortcuts
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+- **Left Arrow**: Previous move
+- **Right Arrow**: Next move
+- **Home**: Go to start
+- **End**: Go to end
+- **F**: Flip board orientation
 
-### `npm run build` fails to minify
+## Technologies
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
->>>>>>> 1cae225 (Initialize project using Create React App)
+- **React 19.0** - Frontend framework
+- **Chess.js** - Chess logic and move validation
+- **TailwindCSS** - Styling and responsive design
+- **Stockfish** - Chess engine (WASM version)
+- **Canvas API** - Interactive chess board rendering
+- **Web Workers** - Non-blocking engine analysis
+
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/main-interface.png" alt="Main Interface" width="80%"/>
+</p>
+
+<p align="center">
+  <img src="screenshots/engine-analysis.png" alt="Engine Analysis" width="80%"/>
+</p>
+
+<p align="center">
+  <img src="screenshots/move-classification.png" alt="Move Classification" width="80%"/>
+</p>
+
+## Contributing
+
+Contributions are welcome! If you'd like to contribute, please follow these steps:
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Commit your changes (`git commit -m 'Add some amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+Please make sure your code follows the existing style and includes appropriate tests.
+
+### Development Guidelines
+
+- Use functional components with hooks
+- Follow the established project structure
+- Write tests for new features
+- Ensure responsive design across devices
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [Stockfish](https://stockfishchess.org/) for the amazing chess engine
+- [Chess.js](https://github.com/jhlywa/chess.js) for chess logic implementation
+- The chess community for feedback and suggestions
+- Special thanks to contributors and testers
+
+---
+
+<p align="center">
+  Made with ♟️ by <a href="https://github.com/yourusername">Muhammad Haikal Rahman</a>
+</p>
