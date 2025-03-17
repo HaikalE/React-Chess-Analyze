@@ -138,11 +138,15 @@ Visit [chessanalyzer.example.com](https://chessanalyzer.example.com) to see the 
 </p>
 
 <p align="center">
-  <img src="screenshots/engine-analysis.png" alt="Engine Analysis" width="80%"/>
+  <img src="https://github.com/user-attachments/assets/0247db29-3142-4548-b6bc-384de73fa5af" alt="Engine Analysis" width="80%"/>
+
 </p>
 
 <p align="center">
-  <img src="screenshots/move-classification.png" alt="Move Classification" width="80%"/>
+  <img src="https://github.com/user-attachments/assets/62f62000-a69a-4f5c-954a-23cd19971e05" alt="Move Classification" width="80%"/>
+  <img src="https://github.com/user-attachments/assets/7e99410a-173a-427b-923b-b8cd2ef3e470" alt="Engine Suggestion" width="80%"/>
+
+
 </p>
 
 ## Contributing
