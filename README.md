@@ -55,7 +55,7 @@ ChessAnalyzer is a sophisticated web application that provides professional-leve
 
 ## Demo
 
-Visit [chessanalyzer.example.com](https://chess-analyze.netlify.app/) to see the application in action.
+Visit [THIS WEBSITE♟️](https://chess-analyze.netlify.app/) to see the application in action.
 
 ## Installation
 
