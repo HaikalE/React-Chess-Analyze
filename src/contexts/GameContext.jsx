@@ -6,6 +6,7 @@ const initialState = {
   positions: [],
   reportResults: null,
   currentMoveIndex: 0,
+  prevMoveIndex: 0, // Track previous index for sound
   boardFlipped: false,
   whitePlayer: { username: "White Player", rating: "?" },
   blackPlayer: { username: "Black Player", rating: "?" },
@@ -16,6 +17,9 @@ const initialState = {
   showEngineMoves: false, // New state for engine move visibility
   activeEngineLine: null, // Track which engine line is being viewed
   engineMoveIndex: 0, // Track position in engine line sequence
+  prevEngineMoveIndex: 0, // Track previous engine move index for sound
+  soundEnabled: true,  // Sound enabled by default
+  soundVolume: 0.5     // Default volume (0.0 to 1.0)
 };
 
 // Reducer function to handle state changes
@@ -27,6 +31,8 @@ function gameReducer(state, action) {
       return { ...state, reportResults: action.payload };
     case 'SET_CURRENT_MOVE_INDEX':
       return { ...state, currentMoveIndex: action.payload };
+    case 'SET_PREV_MOVE_INDEX':
+      return { ...state, prevMoveIndex: action.payload };
     case 'FLIP_BOARD':
       return { ...state, boardFlipped: !state.boardFlipped };
     case 'TOGGLE_ENGINE_MOVES':
@@ -37,22 +43,29 @@ function gameReducer(state, action) {
       return { 
         ...state, 
         activeEngineLine: action.payload,
-        engineMoveIndex: 0 // Reset to start of line
+        engineMoveIndex: 0, // Reset to start of line
+        prevEngineMoveIndex: 0 // Reset previous index too
       };
     case 'CLEAR_ACTIVE_ENGINE_LINE':
       return { 
         ...state, 
         activeEngineLine: null,
-        engineMoveIndex: 0
+        engineMoveIndex: 0,
+        prevEngineMoveIndex: 0
       };
     case 'SET_ENGINE_MOVE_INDEX':
-      return { ...state, engineMoveIndex: action.payload };
+      return { 
+        ...state, 
+        prevEngineMoveIndex: state.engineMoveIndex,
+        engineMoveIndex: action.payload 
+      };
     case 'INCREMENT_ENGINE_MOVE_INDEX':
       if (state.activeEngineLine) {
         const maxMoves = state.activeEngineLine.futureMoves ? 
                         state.activeEngineLine.futureMoves.length : 0;
         return { 
           ...state, 
+          prevEngineMoveIndex: state.engineMoveIndex,
           engineMoveIndex: Math.min(state.engineMoveIndex + 1, maxMoves)
         };
       }
@@ -61,6 +74,7 @@ function gameReducer(state, action) {
       if (state.activeEngineLine) {
         return { 
           ...state, 
+          prevEngineMoveIndex: state.engineMoveIndex,
           engineMoveIndex: Math.max(state.engineMoveIndex - 1, 0)
         };
       }
@@ -79,18 +93,24 @@ function gameReducer(state, action) {
       return { ...state, analysisStatus: action.payload };
     case 'SET_EVALUATED_POSITIONS':
       return { ...state, evaluatedPositions: action.payload };
+    case 'TOGGLE_SOUND':
+      return { ...state, soundEnabled: !state.soundEnabled };
+    case 'SET_SOUND_VOLUME':
+      return { ...state, soundVolume: action.payload };
     case 'RESET_ANALYSIS':
       return {
         ...state,
         positions: [],
         reportResults: null,
         currentMoveIndex: 0,
+        prevMoveIndex: 0,
         isAnalysisRunning: false,
         analysisProgress: 0,
         analysisStatus: '',
         evaluatedPositions: [],
         activeEngineLine: null,
-        engineMoveIndex: 0
+        engineMoveIndex: 0,
+        prevEngineMoveIndex: 0
       };
     default:
       return state;
@@ -119,6 +139,8 @@ export const GameProvider = ({ children }) => {
       0
     );
     
+    // Store previous move index for sound logic
+    dispatch({ type: 'SET_PREV_MOVE_INDEX', payload: previousMoveIndex });
     dispatch({ type: 'SET_CURRENT_MOVE_INDEX', payload: newIndex });
   };
   
@@ -255,6 +277,12 @@ const getDisplayPosition = () => {
     }),
     clearActiveEngineLine: () => dispatch({ type: 'CLEAR_ACTIVE_ENGINE_LINE' }),
     isViewingEngineLine: !!state.activeEngineLine,
+    // Sound functionality
+    toggleSound: () => dispatch({ type: 'TOGGLE_SOUND' }),
+    setSoundVolume: (volume) => dispatch({ 
+      type: 'SET_SOUND_VOLUME', 
+      payload: Math.min(Math.max(volume, 0), 1) 
+    }),
   };
   
   return (

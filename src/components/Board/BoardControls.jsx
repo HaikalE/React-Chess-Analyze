@@ -11,6 +11,7 @@ import {
   faFloppyDisk,
   faLightbulb
 } from '@fortawesome/free-solid-svg-icons';
+import SoundSettings from '../Layout/SoundSettings';
 
 const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
   const { 
@@ -86,8 +87,11 @@ const BoardControls = ({ showSuggestionArrows, setShowSuggestionArrows }) => {
       
       {/* Removed mt-2 class to reduce space on mobile */}
       <div className="flex items-center justify-center sm:justify-end sm:ml-2">
+        {/* Sound Settings Component */}
+        <SoundSettings />
+        
         <button
-          className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded transition-colors ${
+          className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded transition-colors ml-2 ${
             showSuggestionArrows 
               ? 'bg-accent-600 hover:bg-accent-700 text-secondary-100' 
               : 'bg-secondary-700 hover:bg-secondary-600 text-secondary-300'

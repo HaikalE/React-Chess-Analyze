@@ -7,6 +7,7 @@ import {
   drawArrow,
   classificationColors
 } from '../utils/boardUtils';
+import { initSounds, playSoundForMove, playSound, SOUND_TYPES } from '../utils/soundService';
 
 // Piece images cache
 const pieceImages = {};
@@ -23,14 +24,67 @@ const useChessboard = (showSuggestionArrows = false) => {
     positions, 
     reportResults, 
     currentMoveIndex, 
+    prevMoveIndex,
     boardFlipped,
     traverseMoves,
     isViewingEngineLine,
-    activeEngineLine
+    activeEngineLine,
+    soundEnabled
   } = useGameContext();
   
   const canvasRef = useRef(null);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  
+  // Initialize sounds when component mounts
+  useEffect(() => {
+    initSounds();
+  }, []);
+  
+  // Play sounds when moves change
+  useEffect(() => {
+    // Only play sound when sound is enabled
+    if (soundEnabled && currentMoveIndex !== prevMoveIndex && reportResults?.positions) {
+      // Moving forward
+      if (currentMoveIndex > prevMoveIndex) {
+        const currentMove = reportResults.positions[currentMoveIndex]?.move;
+        if (currentMove) {
+          // Get extended move data for sound determination
+          const moveData = {
+            san: currentMove.san,
+            piece: currentMove.san?.charAt(0),
+            captured: currentMove.san?.includes('x'),
+            flags: ''
+          };
+          
+          playSoundForMove(moveData);
+        }
+      } 
+      // Moving backward
+      else if (currentMoveIndex < prevMoveIndex) {
+        // When going backward, we need to determine what kind of move
+        // was previously made to reach the position we're returning from
+        
+        // The move we're undoing is the one that led to the previous position
+        const moveBeingUndone = reportResults.positions[prevMoveIndex]?.move;
+        
+        if (moveBeingUndone) {
+          // Get extended move data for sound determination
+          const moveData = {
+            san: moveBeingUndone.san,
+            piece: moveBeingUndone.san?.charAt(0),
+            captured: moveBeingUndone.san?.includes('x'),
+            flags: ''
+          };
+          
+          // Play the appropriate sound based on the move being undone
+          playSoundForMove(moveData);
+        } else {
+          // Fallback to standard move sound if we can't determine the move type
+          playSound(SOUND_TYPES.MOVE);
+        }
+      }
+    }
+  }, [currentMoveIndex, prevMoveIndex, reportResults, soundEnabled]);
   
   // Load piece images and classification icons
   useEffect(() => {

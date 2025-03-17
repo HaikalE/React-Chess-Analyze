@@ -15,6 +15,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { Chess } from 'chess.js';
 import { convertUciToSan } from '../../utils/analysisHelpers';
+import { playSound, SOUND_TYPES, playSoundForMove } from '../../utils/soundService';
 
 const EngineSuggestion = ({ line, showMove, expanded, onToggleExpand, onViewLine, isActive }) => {
   // Determine color based on evaluation
@@ -25,6 +26,19 @@ const EngineSuggestion = ({ line, showMove, expanded, onToggleExpand, onViewLine
   const bgColor = isPositive ? 'bg-white' : 'bg-black';
   const textColor = isPositive ? 'text-secondary-900' : 'text-white';
   const borderColor = isPositive ? 'border-white' : 'border-secondary-700';
+  
+  // Handle click with sound
+  const handleViewLineClick = () => {
+    // Play sound when toggling engine line view
+    if (isActive) {
+      playSound(SOUND_TYPES.MOVE);
+    } else {
+      // Using PROMOTE sound for viewing engine lines as it's distinct
+      playSound(SOUND_TYPES.PROMOTE);
+    }
+    
+    onViewLine(isActive ? null : line);
+  };
   
   return (
     <div className={`flex flex-col rounded-md border overflow-hidden transition-all duration-300 ${
@@ -68,7 +82,7 @@ const EngineSuggestion = ({ line, showMove, expanded, onToggleExpand, onViewLine
               ? 'bg-primary-500 hover:bg-primary-600 text-white' 
               : 'bg-secondary-600 hover:bg-secondary-500 text-secondary-200'
           }`}
-          onClick={() => onViewLine(isActive ? null : line)}
+          onClick={handleViewLineClick}
           title={isActive ? "Hide this variation" : "Show this variation on board"}
         >
           <FontAwesomeIcon icon={isActive ? faStop : faPlay} />
@@ -107,7 +121,9 @@ const EngineSuggestions = () => {
     setActiveEngineLine,
     clearActiveEngineLine,
     engineMoveIndex,
-    isViewingEngineLine
+    isViewingEngineLine,
+    soundEnabled,
+    prevEngineMoveIndex
   } = useGameContext();
   
   const [suggestions, setSuggestions] = useState([]);
@@ -127,6 +143,56 @@ const EngineSuggestions = () => {
       return false;
     }
   }, [displayPosition?.fen]);
+  
+  // Play sound when navigating through engine line moves
+  useEffect(() => {
+    if (soundEnabled && isViewingEngineLine && engineMoveIndex !== prevEngineMoveIndex && activeEngineLine) {
+      try {
+        // Determine which move we're playing the sound for
+        const movingForward = engineMoveIndex > prevEngineMoveIndex;
+        let moveToPlay;
+        
+        if (movingForward) {
+          // When moving forward, we need to get the move at the current index
+          // For the first move in a variation, use the main moveUCI/moveSAN
+          // For subsequent moves, use the appropriate future move
+          if (engineMoveIndex === 0) {
+            moveToPlay = activeEngineLine.moveSAN || "";
+          } else if (engineMoveIndex - 1 < (activeEngineLine.futureMoves?.length || 0)) {
+            moveToPlay = activeEngineLine.futureMoves[engineMoveIndex - 1] || "";
+          }
+        } else {
+          // When moving backward, get the move we're stepping back from
+          // For the first variation move, use the main moveUCI/moveSAN
+          // For subsequent moves, use the appropriate future move
+          if (prevEngineMoveIndex === 0) {
+            moveToPlay = activeEngineLine.moveSAN || "";
+          } else if (prevEngineMoveIndex - 1 < (activeEngineLine.futureMoves?.length || 0)) {
+            moveToPlay = activeEngineLine.futureMoves[prevEngineMoveIndex - 1] || "";
+          }
+        }
+        
+        if (moveToPlay) {
+          // Analyze the move's characteristics to determine the sound
+          const moveData = {
+            san: moveToPlay,
+            captured: moveToPlay.includes('x'),
+            flags: '',
+            piece: moveToPlay.charAt(0)
+          };
+          
+          // Play the appropriate sound based on the move characteristics
+          playSoundForMove(moveData);
+        } else {
+          // Fallback to standard move sound if we can't determine the move
+          playSound(SOUND_TYPES.MOVE);
+        }
+      } catch (error) {
+        console.warn("Error playing sound for engine move:", error);
+        playSound(SOUND_TYPES.MOVE); // Fallback
+      }
+    }
+  }, [engineMoveIndex, prevEngineMoveIndex, isViewingEngineLine, soundEnabled, activeEngineLine]);
   
   // Handle view/hide engine line
   const handleViewLine = (line) => {
