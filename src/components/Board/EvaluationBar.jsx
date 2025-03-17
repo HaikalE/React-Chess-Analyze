@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { BOARD_SIZE } from '../../utils/boardUtils';
+import { Chess } from 'chess.js';
 
 const formatEval = (evaluation) => {
   if (!evaluation) return "0.0";
@@ -72,8 +73,31 @@ const EvaluationBar = () => {
     let evaluation = { type: "cp", value: 0 };
     
     try {
+      // Check for checkmate
+      const isCheckmate = (() => {
+        if (!displayPosition?.fen) return false;
+        try {
+          const chess = new Chess(displayPosition.fen);
+          return chess.isCheckmate();
+        } catch (e) {
+          console.warn("Error checking for checkmate:", e);
+          return false;
+        }
+      })();
+      
+      // If checkmate, set a definitive evaluation
+      if (isCheckmate) {
+        // Determine which side is checkmated by looking at who's turn it is
+        const isWhiteCheckmated = displayPosition.fen.includes(" w ");
+        evaluation = { 
+          type: "mate", 
+          value: 0,
+          // Store who is checkmated for display purposes
+          winner: isWhiteCheckmated ? "black" : "white"
+        };
+      }
       // If viewing engine line, use its evaluation
-      if (isViewingEngineLine && activeEngineLine?.evaluation) {
+      else if (isViewingEngineLine && activeEngineLine?.evaluation) {
         evaluation = activeEngineLine.evaluation;
         
         // Apply a small delta based on engineMoveIndex to show progression
@@ -125,15 +149,20 @@ const EvaluationBar = () => {
       // Handle checkmate situations - more extreme values for clear visualization
       if (evaluation.value === 0) {
         // If mate value is 0, it means immediate checkmate
-        // Check who's to move to determine the winner
-        const position = isViewingEngineLine 
-          ? displayPosition 
-          : reportResults?.positions?.[currentMoveIndex];
-        
-        const isWhiteToMove = position?.fen?.includes(" w ");
-        
-        // If white to move and mate=0, black has won (white is mated)
-        whitePercent = isWhiteToMove ? 1 : 99;
+        // Use the winner property we set earlier if available
+        if (evaluation.winner) {
+          whitePercent = evaluation.winner === "white" ? 99 : 1;
+        } else {
+          // Fall back to checking who's to move
+          const position = isViewingEngineLine 
+            ? displayPosition 
+            : reportResults?.positions?.[currentMoveIndex];
+          
+          const isWhiteToMove = position?.fen?.includes(" w ");
+          
+          // If white to move and mate=0, black has won (white is mated)
+          whitePercent = isWhiteToMove ? 1 : 99;
+        }
       } 
       else if (evaluation.value > 0) {
         // White delivers mate - show almost entirely white

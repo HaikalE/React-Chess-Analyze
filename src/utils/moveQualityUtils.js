@@ -47,11 +47,15 @@ export function getEvaluationLossThreshold(classif, prevEval) {
 }
 
 // Fungsi utama untuk menentukan kualitas langkah yang persis dengan versi TypeScript
-// Fix for the determineMoveQuality function in moveQualityUtils.js
 export function determineMoveQuality(lastFen, fen, prevEval, evaluation, prevTopMoves, topMoves, moveUci, moveSan, lastPositionClassification, cutoffEvaluation) {
   try {
     let board = new Chess(fen);
     let lastBoard = new Chess(lastFen);
+    
+    // Check for checkmate at the very beginning
+    if (board.isCheckmate()) {
+      return Classification.BEST;  // Checkmate is always the best move
+    }
     
     const topMove = prevTopMoves.find(line => line.id === 1);
     const secondTopMove = prevTopMoves.find(line => line.id === 2);

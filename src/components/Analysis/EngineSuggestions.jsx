@@ -10,7 +10,8 @@ import {
   faChevronUp,
   faPlay,
   faStop,
-  faCirclePlay
+  faCirclePlay,
+  faTrophy
 } from '@fortawesome/free-solid-svg-icons';
 import { Chess } from 'chess.js';
 import { convertUciToSan } from '../../utils/analysisHelpers';
@@ -114,6 +115,19 @@ const EngineSuggestions = () => {
   const [actualDepth, setActualDepth] = useState(0);
   const [depthRequested, setDepthRequested] = useState(0);
   
+  // Add this code to detect checkmate
+  const isCheckmate = React.useMemo(() => {
+    if (!displayPosition?.fen) return false;
+    try {
+      // Check if position is checkmate using chess.js
+      const chess = new Chess(displayPosition.fen);
+      return chess.isCheckmate();
+    } catch (error) {
+      console.warn("Error checking for checkmate:", error);
+      return false;
+    }
+  }, [displayPosition?.fen]);
+  
   // Handle view/hide engine line
   const handleViewLine = (line) => {
     if (line) {
@@ -129,6 +143,13 @@ const EngineSuggestions = () => {
   };
   
   useEffect(() => {
+    // Skip processing if in checkmate
+    if (isCheckmate) {
+      setSuggestions([]);
+      setActualDepth(0);
+      return;
+    }
+    
     if (!currentPosition || !currentPosition.topLines) {
       setSuggestions([]);
       setActualDepth(0);
@@ -198,7 +219,7 @@ const EngineSuggestions = () => {
       }
     }
     
-  }, [currentPosition, activeEngineLine, engineMoveIndex]);
+  }, [currentPosition, activeEngineLine, engineMoveIndex, isCheckmate]);
   
   const toggleLineExpand = (lineId) => {
     setExpandedLines(prev => ({
@@ -206,6 +227,29 @@ const EngineSuggestions = () => {
       [lineId]: !prev[lineId]
     }));
   };
+  
+  // Display checkmate message instead of suggestions when game is over
+  if (isCheckmate) {
+    return (
+      <div className="card bg-secondary-700/50 border-secondary-600">
+        <div className="flex flex-col gap-3">
+          <div className="flex justify-between items-center">
+            <h3 className="font-medium text-primary-300 flex items-center gap-1.5">
+              <FontAwesomeIcon icon={faChessKnight} className="text-primary-400" />
+              Game Over: Checkmate
+            </h3>
+          </div>
+          
+          <div className="text-sm text-center py-3 bg-secondary-800/50 rounded border border-secondary-600">
+            <p className="font-medium text-accent-400">
+              <FontAwesomeIcon icon={faTrophy} className="mr-2" />
+              Checkmate! The game has ended.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   if (!suggestions.length) {
     return null;

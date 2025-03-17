@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { classificationColors, getSemiTransparentColor } from '../../utils/boardUtils';
+import { Chess } from 'chess.js';
 
 const EvaluationGraph = () => {
   const { 
@@ -44,24 +45,50 @@ const EvaluationGraph = () => {
     const remainderPixels = graphWidth - (baseBarWidth * positions.length);
     const extraWidthPerBar = remainderPixels / positions.length;
     
-    let cumulativeWidth = 0;
+    // Pre-calculate bar positions and widths for consistent drawing and hover detection
+    const barInfo = positions.map((_, index) => {
+      const width = baseBarWidth + 
+        Math.floor((index + 1) * extraWidthPerBar) - 
+        Math.floor(index * extraWidthPerBar);
+        
+      // Calculate previous widths to determine x-position
+      const prevBarsWidth = Array.from({length: index}, (_, i) => {
+        return baseBarWidth + 
+          Math.floor((i + 1) * extraWidthPerBar) - 
+          Math.floor(i * extraWidthPerBar);
+      }).reduce((sum, w) => sum + w, 0);
+      
+      return {
+        index,
+        width,
+        x: prevBarsWidth
+      };
+    });
+    
+    // Check for checkmate in the final position
+    let finalCheckmateDetected = false;
+    let finalCheckmateWinner = null;
+    
+    if (positions.length > 0) {
+      const finalPosition = positions[positions.length - 1];
+      try {
+        const chess = new Chess(finalPosition.fen);
+        if (chess.isCheckmate()) {
+          finalCheckmateDetected = true;
+          finalCheckmateWinner = finalPosition.fen.includes(" w ") ? "black" : "white";
+          console.log("Detected checkmate! Winner:", finalCheckmateWinner);
+        }
+      } catch (error) {
+        console.warn("Error checking final position for checkmate:", error);
+      }
+    }
     
     // Draw each position bar
-    for (let i = 0; i < positions.length; i++) {
+    for (const barData of barInfo) {
+      const i = barData.index;
       const position = positions[i];
       const topLine = position.topLines?.find(line => line.id === 1);
-      const evaluation = topLine?.evaluation;
-      
-      // Calculate width for this specific bar
-      const currentBarWidth = baseBarWidth + 
-        Math.floor((i + 1) * extraWidthPerBar) - 
-        Math.floor(i * extraWidthPerBar);
-      
-      // Get classification color
-      const classification = position.classification;
-      const classificationColor = classification 
-        ? classificationColors[classification] 
-        : "#10b981"; // accent-500
+      let evaluation = topLine?.evaluation;
       
       // Set background color
       if (i === hoverIndex) {
@@ -71,41 +98,101 @@ const EvaluationGraph = () => {
       }
       
       // Draw background
-      ctx.fillRect(cumulativeWidth, 0, currentBarWidth, graphHeight);
-      cumulativeWidth += currentBarWidth;
+      ctx.fillRect(barData.x, 0, barData.width, graphHeight);
       
-      // If no evaluation, skip the rest
-      if (!evaluation) continue;
+      // Check for checkmate in this specific position
+      let isCheckmatePosition = false;
+      let checkmateWinner = null;
       
-      if (evaluation.type === "mate") {
-        const moveColor = position.fen.includes(" b ") ? "white" : "black";
+      try {
+        // First check for "#" or "++" in move SAN (checkmate notation)
+        const hasMateSymbol = position.move?.san && 
+                             (position.move.san.includes('#') || 
+                              position.move.san.includes('++'));
         
-        // Handle checkmate (value = 0)
-        if (evaluation.value === 0) {
-          ctx.fillStyle = moveColor === "white" ? "#ffffff" : "#000000";
-        } 
-        // Handle mate-in-X
-        else {
-          if (i === currentMoveIndex && i === hoverIndex) {
-            ctx.fillStyle = "#10b981"; // accent-500
-          } else if (i === currentMoveIndex) {
-            ctx.fillStyle = "#34d399"; // accent-400
-          } else if (i === hoverIndex) {
-            ctx.fillStyle = evaluation.value >= 0 ? "#e2e8f0" : "#475569";
-          } else {
-            ctx.fillStyle = evaluation.value >= 0 ? "#ffffff" : "#000000";
+        if (hasMateSymbol || i === positions.length - 1 && finalCheckmateDetected) {
+          isCheckmatePosition = true;
+          checkmateWinner = position.fen.includes(" w ") ? "black" : "white";
+          
+          // For final position, use the pre-computed winner
+          if (i === positions.length - 1 && finalCheckmateDetected) {
+            checkmateWinner = finalCheckmateWinner;
+          }
+          
+          // Override evaluation to show decisive advantage
+          evaluation = {
+            type: "mate",
+            value: 0,
+            winner: checkmateWinner
+          };
+        }
+        // If we still don't have a clear indication, try using Chess.js to check
+        else if (!evaluation || !isCheckmatePosition) {
+          const chess = new Chess(position.fen);
+          if (chess.isCheckmate()) {
+            isCheckmatePosition = true;
+            checkmateWinner = position.fen.includes(" w ") ? "black" : "white";
+            
+            // Set evaluation to represent checkmate
+            evaluation = {
+              type: "mate",
+              value: 0,
+              winner: checkmateWinner
+            };
           }
         }
-        
-        // Draw mate bar
-        ctx.fillRect(
-          cumulativeWidth - currentBarWidth, 
-          0, 
-          currentBarWidth, 
-          graphHeight
-        );
+      } catch (error) {
+        console.warn("Error checking for checkmate:", error);
+      }
+      
+      // Skip to next position if we still don't have evaluation
+      if (!evaluation) continue;
+      
+      // Handle mate positions
+      if (evaluation.type === "mate") {
+        // For checkmate (value = 0), fill the entire height based on winner
+        if (evaluation.value === 0 || isCheckmatePosition) {
+          if (isCheckmatePosition || evaluation.winner) {
+            // Use the detected winner or evaluation winner
+            const winner = checkmateWinner || evaluation.winner;
+            ctx.fillStyle = winner === "white" ? "#ffffff" : "#000000";
+            
+            // Fill entire bar in winner's color
+            ctx.fillRect(
+              barData.x, 
+              0, 
+              barData.width, 
+              graphHeight
+            );
+          } else {
+            // Fallback method: determine from FEN if we still don't have a winner
+            const isWhiteToMove = position.fen.includes(" w ");
+            ctx.fillStyle = isWhiteToMove ? "#000000" : "#ffffff";
+            
+            ctx.fillRect(
+              barData.x, 
+              0, 
+              barData.width, 
+              graphHeight
+            );
+          }
+        } 
+        // For mate-in-X (not immediate checkmate)
+        else {
+          // For mate-in-X, fill based on which side has the advantage
+          const color = evaluation.value > 0 ? "#ffffff" : "#000000";
+          ctx.fillStyle = i === currentMoveIndex ? "#10b981" : color;
+          
+          // Fill entire bar to show decisive advantage
+          ctx.fillRect(
+            barData.x, 
+            0, 
+            barData.width, 
+            graphHeight
+          );
+        }
       } 
-      // Handle centipawn evaluation
+      // Handle centipawn evaluation 
       else if (evaluation.type === "cp") {
         const height = graphHeight / 2 + evaluation.value / cpPerPixel;
         
@@ -118,30 +205,36 @@ const EvaluationGraph = () => {
         // Draw centipawn bar (adjusting for board orientation)
         if (!boardFlipped) {
           ctx.fillRect(
-            cumulativeWidth - currentBarWidth, 
+            barData.x, 
             graphHeight - height, 
-            currentBarWidth, 
+            barData.width, 
             height
           );
         } else {
           ctx.fillRect(
-            cumulativeWidth - currentBarWidth, 
+            barData.x, 
             0, 
-            currentBarWidth, 
+            barData.width, 
             height
           );
         }
       }
       
-      // Highlight current move and hover
+      // Highlight current move 
       if (i === currentMoveIndex) {
+        const classification = position.classification;
+        const classificationColor = classification 
+          ? classificationColors[classification] 
+          : "#10b981"; // accent-500
+          
         ctx.fillStyle = classification 
           ? getSemiTransparentColor(classificationColor, 0.5) 
           : getSemiTransparentColor("#0ea5e9", 0.5); // primary-500
+          
         ctx.fillRect(
-          cumulativeWidth - currentBarWidth, 
+          barData.x, 
           0, 
-          currentBarWidth, 
+          barData.width, 
           graphHeight
         );
       }
@@ -227,7 +320,7 @@ const EvaluationGraph = () => {
     
     setMousePos({ x, y });
     
-    // Calculate which bar the mouse is over
+    // Calculate which bar the mouse is over using the same calculation as in drawing
     const positions = reportResults.positions;
     const graphWidth = canvas.width;
     
@@ -235,20 +328,22 @@ const EvaluationGraph = () => {
     const remainderPixels = graphWidth - (baseBarWidth * positions.length);
     const extraWidthPerBar = remainderPixels / positions.length;
     
-    let cumulativeWidth = 0;
+    let currentPosition = 0;
     let newHoverIndex = null;
     
+    // Use the same calculation as in drawing to determine bar positions
     for (let i = 0; i < positions.length; i++) {
-      const currentBarWidth = baseBarWidth + 
+      const barWidth = baseBarWidth + 
         Math.floor((i + 1) * extraWidthPerBar) - 
         Math.floor(i * extraWidthPerBar);
       
-      if (x < cumulativeWidth + currentBarWidth) {
+      // Check if mouse is within this bar's bounds
+      if (x >= currentPosition && x < currentPosition + barWidth) {
         newHoverIndex = i;
         break;
       }
       
-      cumulativeWidth += currentBarWidth;
+      currentPosition += barWidth;
     }
     
     setHoverIndex(newHoverIndex);

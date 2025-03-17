@@ -2,6 +2,8 @@
  * Service to interact with the Stockfish chess engine
  * With comprehensive error handling for all edge cases
  */
+import { Chess } from 'chess.js';
+
 export class Stockfish {
   constructor() {
     // Use local Stockfish files instead of CDN with multiple fallbacks
@@ -75,6 +77,18 @@ export class Stockfish {
     if (!fen || typeof fen !== 'string') {
       console.error("Invalid FEN provided to Stockfish evaluate:", fen);
       return this.getDefaultEvaluation();
+    }
+    
+    // Check for checkmate early to avoid unnecessary processing
+    try {
+      const chess = new Chess(fen);
+      if (chess.isCheckmate()) {
+        console.log("Checkmate detected in evaluate, skipping engine analysis");
+        return []; // Return empty array for checkmate
+      }
+    } catch (e) {
+      console.warn("Error checking for checkmate:", e);
+      // Continue with evaluation if checkmate check fails
     }
     
     if (!targetDepth || isNaN(targetDepth) || targetDepth < 1) {
@@ -353,6 +367,20 @@ export class Stockfish {
    */
   ensureMultipleLines(lines, fen, bestmove = null) {
     try {
+      // Check for checkmate before anything else
+      if (fen) {
+        try {
+          const chess = new Chess(fen);
+          if (chess.isCheckmate()) {
+            console.log("Checkmate detected in ensureMultipleLines, returning empty array");
+            return []; // Return empty array for checkmate
+          }
+        } catch (e) {
+          console.warn("Error checking for checkmate:", e);
+          // Continue with normal processing if checkmate check fails
+        }
+      }
+      
       if (!lines || !Array.isArray(lines) || lines.length === 0) {
         // Complete fallback
         return this.getDefaultEvaluation(fen, bestmove);
@@ -466,6 +494,21 @@ export class Stockfish {
    */
   getDefaultEvaluation(fen, bestmove = null) {
     try {
+      // Check for checkmate before anything else
+      if (fen) {
+        try {
+          const chess = new Chess(fen);
+          if (chess.isCheckmate()) {
+            console.log("Checkmate detected in getDefaultEvaluation, returning empty array");
+            // Return an empty array for checkmate - UI will show Game Over message
+            return [];
+          }
+        } catch (e) {
+          console.warn("Error checking for checkmate:", e);
+          // Continue with default evaluation if checkmate check fails
+        }
+      }
+      
       // Default move for standard starting position
       let defaultMove = "e2e4";
       let secondaryMove = "d2d4";
